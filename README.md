@@ -21,7 +21,7 @@
 ## 技术栈与目录
 
 - 后端：Java 8 语法（JDK 17 编译，`maven.compiler.release=8`）、Spring Boot 2.7.18、MyBatis-Plus 3.5.3.1、H2（开发）/ MySQL 8（生产）、Bearer Token 认证
-- 前端（待实现）：Vue 3、Vite、Element Plus、Vue Router、Axios
+- 前端：Vue 3、Vite、Element Plus、Vue Router、Axios（开发服务器 `/api` 代理到 8080）
 
 ```text
 backend/
@@ -37,7 +37,7 @@ backend/
     common/       统一响应 R、异常处理、CSV、编号生成、税额计算、校验码派生
   src/main/resources/schema.sql, data.sql   幂等建表与演示数据
   src/test/java/com/inv/                    JUnit 5 集成测试（H2 内存库）
-frontend/                                   （待实现）
+frontend/                                   Vue 3 + Element Plus 管理界面
 scripts/smoke.sh                            端到端冒烟脚本
 ```
 
@@ -73,7 +73,28 @@ MySQL 通过 `--spring.profiles.active=mysql` 启用（`DB_HOST/DB_PORT/DB_NAME/
 
 ### 前端
 
-（待实现：Vue 3 + Vite，规划目录 `frontend/src/{api,layout,router,views}`）
+```bash
+cd frontend
+npm install
+npm run dev      # http://localhost:5173，/api 代理至后端 8080
+npm run build    # 产出 dist/
+```
+
+菜单与页面：
+
+| 菜单 | 页面 |
+| --- | --- |
+| 工作台 | 指标卡（今日开票张数/金额、本月销项/进项税额、异常进项、费用风险）、待办（待审核/待开票/待查验/待勾选）、近 12 月开票趋势、号段余量预警 |
+| 销项管理 | 开票申请（筛选、新建/编辑含明细行、含税/不含税切换自动反算、提交/审核/驳回/拆分/合并/批量审核/批量开票）；发票查询（详情抽屉含明细/事件/交付，作废/红冲/交付/导出）；红字信息表（确认/红冲开票） |
+| 进项管理 | 进项发票（录入/CSV 导入/OCR 模拟、查验/批量查验、勾选/取消勾选/不抵扣、三单匹配、入账、导出）；抵扣确认（按主体+属期生成抵扣批次） |
+| 费用发票 | 上传、合规检查/批量检查（风险项标签）、报销、驳回 |
+| 税务管理 | 增值税申报预填（分税率销项、已抵扣进项、应纳税额/留抵、税负率预警、“再勾选 N 元进项税”预演）；属期管理（开账/关账） |
+| 系统集成 | 电子档案（按月筛选、导出清单）、集成日志、开放接口说明（curl 示例） |
+| 基础数据 | 纳税主体（含分票种限额子表）、往来单位、商品/服务、发票号段 |
+| 报表分析 | 销项统计（月/主体/客户/票种）、进项统计、红冲作废统计、客户开票排名 TOP10，CSV 导出 |
+| 系统管理 | 用户管理、操作日志 |
+
+前端按登录角色隐藏无权按钮（审核/开票/关账/抵扣等仅 FINANCE 及以上，用户管理仅 ADMIN）。
 
 ### 登录与权限
 
