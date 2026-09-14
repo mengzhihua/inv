@@ -112,17 +112,6 @@ INSERT INTO inv_invoice_stock (tax_entity_id, invoice_type, invoice_code, start_
 SELECT (SELECT id FROM inv_tax_entity WHERE code = 'SZ'), 'E_NORMAL', '031002300211', '00005001', '00005100', '00005001', 100, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
 WHERE NOT EXISTS (SELECT 1 FROM inv_invoice_stock WHERE tax_entity_id = (SELECT id FROM inv_tax_entity WHERE code = 'SZ') AND invoice_type = 'E_NORMAL');
 
--- ===================== 税务属期 =====================
-INSERT INTO inv_tax_period (tax_entity_id, period, status, created_at, updated_at)
-SELECT (SELECT id FROM inv_tax_entity WHERE code = 'HQ'), TO_CHAR(CURRENT_DATE, 'YYYY-MM'), 'OPEN', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-WHERE NOT EXISTS (SELECT 1 FROM inv_tax_period WHERE tax_entity_id = (SELECT id FROM inv_tax_entity WHERE code = 'HQ') AND period = TO_CHAR(CURRENT_DATE, 'YYYY-MM'));
-INSERT INTO inv_tax_period (tax_entity_id, period, status, created_at, updated_at)
-SELECT (SELECT id FROM inv_tax_entity WHERE code = 'HQ'), TO_CHAR(DATEADD('MONTH', -1, CURRENT_DATE), 'YYYY-MM'), 'CLOSED', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-WHERE NOT EXISTS (SELECT 1 FROM inv_tax_period WHERE tax_entity_id = (SELECT id FROM inv_tax_entity WHERE code = 'HQ') AND period = TO_CHAR(DATEADD('MONTH', -1, CURRENT_DATE), 'YYYY-MM'));
-INSERT INTO inv_tax_period (tax_entity_id, period, status, created_at, updated_at)
-SELECT (SELECT id FROM inv_tax_entity WHERE code = 'SZ'), TO_CHAR(CURRENT_DATE, 'YYYY-MM'), 'OPEN', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-WHERE NOT EXISTS (SELECT 1 FROM inv_tax_period WHERE tax_entity_id = (SELECT id FROM inv_tax_entity WHERE code = 'SZ') AND period = TO_CHAR(CURRENT_DATE, 'YYYY-MM'));
-
 -- ===================== 演示开票申请（APPROVED 待开） =====================
 INSERT INTO inv_invoice_request (request_no, tax_entity_id, customer_id, invoice_type, buyer_name, buyer_tax_no, buyer_address_phone, buyer_bank, source, total_amount, total_tax, total_with_tax, status, created_at, updated_at)
 SELECT 'REQ-DEMO-0001', (SELECT id FROM inv_tax_entity WHERE code = 'HQ'), (SELECT id FROM inv_partner WHERE name = '华东电商科技有限公司'),
@@ -165,15 +154,3 @@ SELECT 'SCAN', 'NORMAL', '032002300003', '10001003', CURRENT_DATE, '环球物流
        '云途科技股份有限公司', '91310000780000001A', 800.00, 72.00, 872.00, '66666666666666666666',
        (SELECT id FROM inv_tax_entity WHERE code = 'HQ'), 'UNVERIFIED', 'NORMAL', 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
 WHERE NOT EXISTS (SELECT 1 FROM inv_input_invoice WHERE invoice_code = '032002300003' AND invoice_no = '10001003');
-
--- ===================== 演示费用发票 =====================
-INSERT INTO inv_expense_invoice (employee_name, employee_no, department, upload_time, invoice_type, invoice_code, invoice_no, issue_date,
-    seller_name, seller_tax_no, buyer_name, buyer_tax_no, total_amount, total_tax, total_with_tax, status, created_at, updated_at)
-SELECT '陈出差', 'E1001', '销售部', CURRENT_TIMESTAMP, 'OTHER', NULL, 'EXP' || TO_CHAR(CURRENT_TIMESTAMP, 'YYYYMMDDHH24MISS'), CURRENT_DATE,
-       '中国铁路上海局', '91310000132200001X', '云途科技股份有限公司', '91310000780000001A', 553.00, 0, 553.00, 'UPLOADED', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-WHERE NOT EXISTS (SELECT 1 FROM inv_expense_invoice WHERE employee_no = 'E1001');
-INSERT INTO inv_expense_invoice (employee_name, employee_no, department, upload_time, invoice_type, invoice_no, issue_date,
-    seller_name, seller_tax_no, buyer_name, buyer_tax_no, total_amount, total_tax, total_with_tax, status, risk_items, created_at, updated_at)
-SELECT '刘市场', 'E1002', '市场部', CURRENT_TIMESTAMP, 'NORMAL', 'EXP-OLD-001', DATEADD('DAY', -200, CURRENT_DATE),
-       '某会议会展公司', '91500000MA5K00008X', '云途科技股份有限公司', '91310000780000001A', 60000.00, 3600.00, 63600.00, 'RISK', '["EXPIRED","AMOUNT_LIMIT"]', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-WHERE NOT EXISTS (SELECT 1 FROM inv_expense_invoice WHERE employee_no = 'E1002');

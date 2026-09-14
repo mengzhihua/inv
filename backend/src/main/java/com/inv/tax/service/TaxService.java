@@ -88,14 +88,16 @@ public class TaxService {
     /** 增值税申报预填 */
     public Map<String, Object> vatReturn(Long taxEntityId, String period) {
         // 销项：按税率分组（正常票 - 红字票，不含作废）；红字行金额为负，直接累加即净额
+        LocalDate periodStart = LocalDate.parse(period + "-01");
+        LocalDate periodEnd = periodStart.plusMonths(1);
         List<Map<String, Object>> outputByRate = jdbc.queryForList(
                 "SELECT l.tax_rate AS taxRate, COUNT(DISTINCT i.id) AS invoiceCount,"
                         + " SUM(l.amount) AS amount, SUM(l.tax_amount) AS tax"
                         + " FROM inv_invoice_line l JOIN inv_invoice i ON i.id = l.invoice_id"
                         + " WHERE i.tax_entity_id = ? AND i.status <> 'CANCELLED'"
-                        + " AND TO_CHAR(i.issue_date,'YYYY-MM') = ?"
+                        + " AND i.issue_date >= ? AND i.issue_date < ?"
                         + " GROUP BY l.tax_rate ORDER BY l.tax_rate",
-                taxEntityId, period);
+                taxEntityId, periodStart, periodEnd);
 
         BigDecimal outAmount = BigDecimal.ZERO, outTax = BigDecimal.ZERO;
         int outCount = 0;
