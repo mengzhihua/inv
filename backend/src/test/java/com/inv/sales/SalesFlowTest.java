@@ -258,6 +258,18 @@ class SalesFlowTest {
     }
 
     @Test
+    void redFlushCancelledOriginalRejected() {
+        Invoice inv = approvedInvoice("R4", "NORMAL", "1000.00", "0.13");
+        RedInfo info = invoiceService.createRedInfo(inv.getId(), "RETURN", null);
+        info = invoiceService.confirmRedInfo(info.getId());
+        invoiceService.cancel(inv.getId(), "测试作废");
+        final Long redInfoId = info.getId();
+
+        BizException ex = assertThrows(BizException.class, () -> invoiceService.redFlush(redInfoId));
+        assertEquals("原票状态为 CANCELLED，不可红冲", ex.getMessage());
+    }
+
+    @Test
     void redFlushOverConcurrentInfos() {
         Invoice inv = approvedInvoice("R2", "E_SPECIAL", "1000.00", "0.13");
         // 两张各 60% 的 DRAFT 红字信息表均可创建确认

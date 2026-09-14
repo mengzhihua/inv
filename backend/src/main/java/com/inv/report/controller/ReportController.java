@@ -97,18 +97,29 @@ public class ReportController {
                                                      @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
                                                      @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
         if ("month".equals(dimension)) {
-            LocalDate start = from == null ? LocalDate.now().minusMonths(11).withDayOfMonth(1) : from.withDayOfMonth(1);
-            LocalDate end = to == null ? LocalDate.now().plusMonths(1).withDayOfMonth(1) : to.withDayOfMonth(1);
+            boolean defaultRange = from == null && to == null;
+            LocalDate rangeFrom = defaultRange
+                    ? LocalDate.now().minusMonths(11).withDayOfMonth(1)
+                    : (from == null ? LocalDate.now().minusMonths(11).withDayOfMonth(1) : from);
+            LocalDate exclusiveTo = defaultRange
+                    ? LocalDate.now().plusMonths(1).withDayOfMonth(1)
+                    : (to == null ? LocalDate.now().plusDays(1) : to.plusDays(1));
+            LocalDate first = rangeFrom.withDayOfMonth(1);
             List<Map<String, Object>> rows = new ArrayList<>();
-            for (LocalDate first = start; first.isBefore(end); first = first.plusMonths(1)) {
+            while (first.isBefore(exclusiveTo)) {
                 LocalDate next = first.plusMonths(1);
-                Map<String, Object> row = new HashMap<>();
-                row.put("dim", first.format(DateTimeFormatter.ofPattern("yyyy-MM")));
-                row.put("cnt", jdbc.queryForObject("SELECT COUNT(*) FROM inv_invoice WHERE issue_date >= ? AND issue_date < ? AND status <> 'CANCELLED'", Long.class, first, next));
-                row.put("amount", jdbc.queryForObject("SELECT COALESCE(SUM(total_amount),0) FROM inv_invoice WHERE issue_date >= ? AND issue_date < ? AND status <> 'CANCELLED'", BigDecimal.class, first, next));
-                row.put("tax", jdbc.queryForObject("SELECT COALESCE(SUM(total_tax),0) FROM inv_invoice WHERE issue_date >= ? AND issue_date < ? AND status <> 'CANCELLED'", BigDecimal.class, first, next));
-                row.put("withTax", jdbc.queryForObject("SELECT COALESCE(SUM(total_with_tax),0) FROM inv_invoice WHERE issue_date >= ? AND issue_date < ? AND status <> 'CANCELLED'", BigDecimal.class, first, next));
-                rows.add(row);
+                LocalDate queryFrom = first.isAfter(rangeFrom) ? first : rangeFrom;
+                LocalDate queryTo = next.isBefore(exclusiveTo) ? next : exclusiveTo;
+                if (queryFrom.isBefore(queryTo)) {
+                    Map<String, Object> row = new HashMap<>();
+                    row.put("dim", first.format(DateTimeFormatter.ofPattern("yyyy-MM")));
+                    row.put("cnt", jdbc.queryForObject("SELECT COUNT(*) FROM inv_invoice WHERE issue_date >= ? AND issue_date < ? AND status <> 'CANCELLED'", Long.class, queryFrom, queryTo));
+                    row.put("amount", jdbc.queryForObject("SELECT COALESCE(SUM(total_amount),0) FROM inv_invoice WHERE issue_date >= ? AND issue_date < ? AND status <> 'CANCELLED'", BigDecimal.class, queryFrom, queryTo));
+                    row.put("tax", jdbc.queryForObject("SELECT COALESCE(SUM(total_tax),0) FROM inv_invoice WHERE issue_date >= ? AND issue_date < ? AND status <> 'CANCELLED'", BigDecimal.class, queryFrom, queryTo));
+                    row.put("withTax", jdbc.queryForObject("SELECT COALESCE(SUM(total_with_tax),0) FROM inv_invoice WHERE issue_date >= ? AND issue_date < ? AND status <> 'CANCELLED'", BigDecimal.class, queryFrom, queryTo));
+                    rows.add(row);
+                }
+                first = next;
             }
             return R.ok(rows);
         }
