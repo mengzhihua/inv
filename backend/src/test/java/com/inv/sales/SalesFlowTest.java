@@ -258,6 +258,25 @@ class SalesFlowTest {
     }
 
     @Test
+    void redFlushOverConcurrentInfos() {
+        Invoice inv = approvedInvoice("R2", "E_SPECIAL", "1000.00", "0.13");
+        // 两张各 60% 的 DRAFT 红字信息表均可创建确认
+        RedInfoLine rl = new RedInfoLine();
+        rl.setGoodsName("测试商品");
+        rl.setAmount(new BigDecimal("600.00"));
+        rl.setTaxRate(new BigDecimal("0.13"));
+        rl.setTaxAmount(new BigDecimal("78.00"));
+        RedInfo i1 = invoiceService.createRedInfo(inv.getId(), "RETURN", Collections.singletonList(rl));
+        RedInfo i2 = invoiceService.createRedInfo(inv.getId(), "RETURN", Collections.singletonList(rl));
+        invoiceService.confirmRedInfo(i1.getId());
+        invoiceService.confirmRedInfo(i2.getId());
+        invoiceService.redFlush(i1.getId());
+        // 第二张红冲时剩余仅 40%，应被拒
+        BizException ex = assertThrows(BizException.class, () -> invoiceService.redFlush(i2.getId()));
+        assertTrue(ex.getMessage().contains("剩余可红"));
+    }
+
+    @Test
     void requestStateMachine() {
         TaxEntity e = fx.newEntity("T-SM", "91310000TESTSM001");
         InvoiceRequest r = requestService.create(TestFixtures.req(e.getId(), "E_NORMAL"), TestFixtures.one("10.00", "0.13"));

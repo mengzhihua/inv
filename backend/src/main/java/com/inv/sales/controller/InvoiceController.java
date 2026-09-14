@@ -11,6 +11,7 @@ import com.inv.sales.entity.Invoice;
 import com.inv.sales.entity.RedInfo;
 import com.inv.sales.entity.RedInfoLine;
 import com.inv.sales.mapper.InvoiceMapper;
+import com.inv.sales.mapper.RedInfoMapper;
 import com.inv.sales.service.InvoiceService;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
@@ -30,6 +31,7 @@ import java.util.Map;
 public class InvoiceController {
     private final InvoiceService service;
     private final InvoiceMapper mapper;
+    private final RedInfoMapper redInfoMapper;
 
     @Data
     public static class IssueReq {
@@ -143,6 +145,17 @@ public class InvoiceController {
     }
 
     // ---------- 红冲 ----------
+    @GetMapping("/red-info/page")
+    public R<Page<RedInfo>> redInfoPage(@RequestParam(defaultValue = "1") long current,
+                                        @RequestParam(defaultValue = "20") long size,
+                                        @RequestParam(required = false) String status,
+                                        @RequestParam(required = false) Long invoiceId) {
+        return R.ok(redInfoMapper.selectPage(new Page<>(current, size), new LambdaQueryWrapper<RedInfo>()
+                .eq(StringUtils.isNotBlank(status), RedInfo::getStatus, status)
+                .eq(invoiceId != null, RedInfo::getInvoiceId, invoiceId)
+                .orderByDesc(RedInfo::getId)));
+    }
+
     @PostMapping("/red-info")
     public R<RedInfo> createRedInfo(@RequestBody RedInfoReq req) {
         return R.ok(service.createRedInfo(req.getInvoiceId(), req.getReason(), req.getLines()));

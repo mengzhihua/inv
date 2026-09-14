@@ -158,16 +158,19 @@ public class InvoiceService {
         return inv;
     }
 
-    /** 数电票号码：20 位（4位年份段 + 16 位递增序号） */
+    /** 数电票号码：20 位（4 位年份 + 16 位年内递增序号，与 CodeGenerator 相同的 UPDATE/INSERT 模式） */
     private String nextElectricNo() {
-        String day = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy"));
-        jdbc.update("MERGE INTO inv_sequence KEY(prefix, day_key) VALUES ('EINV', ?, 0)", "0000");
-        int updated = jdbc.update("UPDATE inv_sequence SET seq_value = seq_value + 1 WHERE prefix = 'EINV' AND day_key = '0000'");
+        String year = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy"));
+        int updated = jdbc.update("UPDATE inv_sequence SET seq_value = seq_value + 1 WHERE prefix = 'EINV' AND day_key = ?", year);
         if (updated == 0) {
-            jdbc.update("INSERT INTO inv_sequence (prefix, day_key, seq_value) VALUES ('EINV', '0000', 1)");
+            try {
+                jdbc.update("INSERT INTO inv_sequence (prefix, day_key, seq_value) VALUES ('EINV', ?, 1)", year);
+            } catch (DuplicateKeyException e) {
+                jdbc.update("UPDATE inv_sequence SET seq_value = seq_value + 1 WHERE prefix = 'EINV' AND day_key = ?", year);
+            }
         }
-        Integer n = jdbc.queryForObject("SELECT seq_value FROM inv_sequence WHERE prefix = 'EINV' AND day_key = '0000'", Integer.class);
-        return String.format("%s%016d", day, n);
+        Integer n = jdbc.queryForObject("SELECT seq_value FROM inv_sequence WHERE prefix = 'EINV' AND day_key = ?", Integer.class, year);
+        return String.format("%s%016d", year, n);
     }
 
     // ==================== 作废 ====================
@@ -212,7 +215,13 @@ public class InvoiceService {
         List<InvoiceLine> orig = linesOf(invoiceId);
         List<RedInfoLine> use = lines;
         if (use == null || use.isEmpty()) {
-            // 未给行则按剩余可红金额全额红冲
+            if (orig.isEmpty()) {
+                throw new BizException("原票无明细行，请明确传入红冲明细");
+            }
+            if (inv.getRedAmount() != null && inv.getRedAmount().signum() > 0) {
+                throw new BizException("原票已部分红冲，请明确传入红冲明细");
+            }
+            // 未给行且未发生过红冲：按原票行全额红冲
             use = new ArrayList<>();
             for (InvoiceLine l : orig) {
                 RedInfoLine r = copyToRed(l);
@@ -277,6 +286,12 @@ public class InvoiceService {
             throw new BizException("红字信息表须先确认（CONFIRMED）");
         }
         Invoice orig = requireInvoice(info.getInvoiceId());
+        // 重新校验未超过原票剩余可红金额（多张红字信息表可能先后确认）
+        BigDecimal remainAmount = orig.getTotalAmount().subtract(null2(orig.getRedAmount()));
+        BigDecimal remainTax = orig.getTotalTax().subtract(null2(orig.getRedTax()));
+        if (info.getTotalAmount().compareTo(remainAmount) > 0 || info.getTotalTax().compareTo(remainTax) > 0) {
+            throw new BizException("红冲金额超过原票剩余可红金额（剩余不含税 " + remainAmount + "，税额 " + remainTax + "）");
+        }
         List<RedInfoLine> rlines = redInfoLineMapper.selectList(new LambdaQueryWrapper<RedInfoLine>()
                 .eq(RedInfoLine::getRedInfoId, redInfoId));
 
