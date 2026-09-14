@@ -2,6 +2,7 @@ package com.inv.report;
 
 import com.inv.TestFixtures;
 import com.inv.basic.entity.TaxEntity;
+import com.inv.common.BizException;
 import com.inv.report.controller.ReportController;
 import com.inv.sales.entity.Invoice;
 import com.inv.sales.entity.InvoiceRequest;
@@ -19,6 +20,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @SpringBootTest
 @ActiveProfiles("test")
@@ -62,6 +64,17 @@ class ReportTest {
         assertEquals(1, rows.size());
         assertEquals(2L, ((Number) rows.get(0).get("cnt")).longValue());
         assertEquals(new BigDecimal("1300.00"), new BigDecimal(String.valueOf(rows.get(0).get("amount"))));
+    }
+
+    @Test
+    void rejectsInvalidSalesSummaryDateRange() {
+        BizException reversed = assertThrows(BizException.class, () -> reportController.salesSummary(
+                "month", LocalDate.of(2026, 9, 20), LocalDate.of(2026, 9, 15)));
+        assertEquals("开始日期不能晚于结束日期", reversed.getMessage());
+
+        BizException maxDate = assertThrows(BizException.class, () -> reportController.salesSummary(
+                "month", null, LocalDate.MAX));
+        assertEquals("结束日期非法", maxDate.getMessage());
     }
 
     private Invoice issue(TaxEntity entity, String amount) {

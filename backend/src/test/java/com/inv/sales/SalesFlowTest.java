@@ -207,6 +207,72 @@ class SalesFlowTest {
         assertTrue(ex.getMessage().contains("跨月"));
     }
 
+    @Test
+    void concurrentRedFlushAndCancelCannotMixStates() throws Exception {
+        Invoice inv = approvedInvoice("RC", "NORMAL", "1000.00", "0.13");
+        RedInfoLine rl = new RedInfoLine();
+        rl.setGoodsName("测试商品");
+        rl.setAmount(new BigDecimal("400.00"));
+        rl.setTaxRate(new BigDecimal("0.13"));
+        rl.setTaxAmount(new BigDecimal("52.00"));
+        RedInfo info = invoiceService.createRedInfo(inv.getId(), "RETURN", Collections.singletonList(rl));
+        invoiceService.confirmRedInfo(info.getId());
+
+        CountDownLatch start = new CountDownLatch(1);
+        AtomicInteger redSuccess = new AtomicInteger();
+        AtomicInteger cancelSuccess = new AtomicInteger();
+        ConcurrentLinkedQueue<Throwable> errs = new ConcurrentLinkedQueue<>();
+        TransactionTemplate tx = new TransactionTemplate(txManager);
+        List<Thread> ts = new ArrayList<>();
+        final Long invoiceId = inv.getId();
+        final Long redInfoId = info.getId();
+        ts.add(new Thread(() -> {
+            try {
+                start.await();
+                tx.execute(status -> {
+                    invoiceService.redFlush(redInfoId);
+                    redSuccess.incrementAndGet();
+                    return null;
+                });
+            } catch (Throwable ex) {
+                errs.add(ex);
+            }
+        }));
+        ts.add(new Thread(() -> {
+            try {
+                start.await();
+                tx.execute(status -> {
+                    invoiceService.cancel(invoiceId, "并发测试");
+                    cancelSuccess.incrementAndGet();
+                    return null;
+                });
+            } catch (Throwable ex) {
+                errs.add(ex);
+            }
+        }));
+        for (Thread t : ts) {
+            t.start();
+        }
+        start.countDown();
+        for (Thread t : ts) {
+            t.join();
+        }
+
+        Invoice finalInvoice = invoiceService.requireInvoice(invoiceId);
+        long redCount = invoiceMapper.selectCount(new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<Invoice>()
+                .eq("red_of_invoice_id", invoiceId));
+        assertEquals(1, redSuccess.get() + cancelSuccess.get());
+        if ("CANCELLED".equals(finalInvoice.getStatus())) {
+            assertEquals(0, redCount);
+            assertEquals(0, finalInvoice.getRedAmount().compareTo(BigDecimal.ZERO));
+        } else {
+            assertEquals("ISSUED", finalInvoice.getStatus());
+            assertEquals(1, redCount);
+            assertEquals(new BigDecimal("400.00"), finalInvoice.getRedAmount());
+        }
+        assertEquals(1, errs.size());
+    }
+
     @Autowired
     com.inv.sales.mapper.InvoiceMapper invoiceMapper;
 

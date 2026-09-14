@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
@@ -87,7 +88,7 @@ public class UserService implements ApplicationRunner {
         long now = System.currentTimeMillis();
         cleanupLoginFailures(now);
         if (loginFail.size() >= MAX_LOGIN_FAILURE_ENTRIES && !loginFail.containsKey(key)) {
-            loginFail.clear();
+            trimLoginFailures(now);
         }
         long[] rec = loginFail.get(key);
         if (rec != null && rec[0] >= loginMaxFail && now < rec[1]) {
@@ -128,6 +129,26 @@ public class UserService implements ApplicationRunner {
                 loginFail.remove(entry.getKey(), record);
             }
         }
+    }
+
+    private void trimLoginFailures(long now) {
+        List<Map.Entry<String, long[]>> candidates = new ArrayList<>();
+        for (Map.Entry<String, long[]> entry : loginFail.entrySet()) {
+            long[] record = entry.getValue();
+            if (record[1] <= now) {
+                candidates.add(entry);
+            }
+        }
+        candidates.sort((a, b) -> Long.compare(lastFail(a.getValue()), lastFail(b.getValue())));
+        int removeCount = Math.max(1, MAX_LOGIN_FAILURE_ENTRIES / 10);
+        for (int i = 0; i < removeCount && i < candidates.size(); i++) {
+            Map.Entry<String, long[]> entry = candidates.get(i);
+            loginFail.remove(entry.getKey(), entry.getValue());
+        }
+    }
+
+    private static long lastFail(long[] record) {
+        return record.length > 2 ? record[2] : 0;
     }
 
     @Transactional

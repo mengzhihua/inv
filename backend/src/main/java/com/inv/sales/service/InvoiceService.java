@@ -176,7 +176,10 @@ public class InvoiceService {
     // ==================== 作废 ====================
     @Transactional
     public Invoice cancel(Long invoiceId, String reason) {
-        Invoice inv = requireInvoice(invoiceId);
+        Invoice inv = invoiceMapper.selectForUpdate(invoiceId);
+        if (inv == null) {
+            throw new BizException("发票不存在: " + invoiceId);
+        }
         if (!"SPECIAL".equals(inv.getInvoiceType()) && !"NORMAL".equals(inv.getInvoiceType())) {
             throw new BizException("电子发票/数电票不允许作废，请使用红冲");
         }

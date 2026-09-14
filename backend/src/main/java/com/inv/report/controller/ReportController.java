@@ -2,6 +2,7 @@ package com.inv.report.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.inv.common.BizException;
 import com.inv.common.Csv;
 import com.inv.common.R;
 import com.inv.expense.entity.ExpenseInvoice;
@@ -96,6 +97,12 @@ public class ReportController {
     public R<List<Map<String, Object>>> salesSummary(@RequestParam(defaultValue = "month") String dimension,
                                                      @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
                                                      @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+        if (from != null && to != null && from.isAfter(to)) {
+            throw new BizException("开始日期不能晚于结束日期");
+        }
+        if (to != null && LocalDate.MAX.equals(to)) {
+            throw new BizException("结束日期非法");
+        }
         if ("month".equals(dimension)) {
             boolean defaultRange = from == null && to == null;
             LocalDate rangeFrom = defaultRange
