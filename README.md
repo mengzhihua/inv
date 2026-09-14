@@ -70,6 +70,7 @@ MySQL 通过 `--spring.profiles.active=mysql` 启用（`DB_HOST/DB_PORT/DB_NAME/
 | `INV_MOCK_TAX_FAIL` | `true` 时含税金额尾数 `.99` 的开票请求模拟税控失败（演示用） |
 | `INV_EXPENSE_MAX_DAYS` / `INV_EXPENSE_SINGLE_LIMIT` | 费用票合规：开票距今天数上限（默认 180）/ 单张含税上限（默认 50000） |
 | `INV_TAX_BURDEN_WARN` | 税负率预警阈值（默认 0.03） |
+| `INV_LOGIN_MAX_FAIL` / `INV_LOGIN_LOCK_MINUTES` | 同一用户名连续登录失败次数 / 锁定分钟数（默认 5 / 15，内存级，重启清零） |
 
 ### 前端
 

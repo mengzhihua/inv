@@ -20,6 +20,7 @@ import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
 @Service
@@ -32,6 +33,15 @@ public class UserService implements ApplicationRunner {
 
     @Value("${inv.auth.admin-password:}")
     private String initialAdminPassword;
+
+    @Value("${inv.login.max-fail:5}")
+    private int loginMaxFail;
+
+    @Value("${inv.login.lock-minutes:15}")
+    private int loginLockMinutes;
+
+    /** 登录失败计数：同一用户名连续失败 maxFail 次锁定 lockMinutes 分钟（内存级，重启清零） */
+    private final ConcurrentHashMap<String, long[]> loginFail = new ConcurrentHashMap<>();
 
     /**
      * 首次启动无任何用户时创建 admin 账号。口令来自 inv.auth.admin-password / INV_ADMIN_PASSWORD；
@@ -71,13 +81,28 @@ public class UserService implements ApplicationRunner {
 
     @Transactional
     public LoginResult login(String username, String password) {
+        String key = username == null ? "" : username;
+        long now = System.currentTimeMillis();
+        long[] rec = loginFail.get(key);
+        if (rec != null && rec[0] >= loginMaxFail && now < rec[1]) {
+            throw new BizException("账号已锁定，请稍后再试");
+        }
         User user = userMapper.selectOne(new LambdaQueryWrapper<User>().eq(User::getUsername, username));
         if (user == null || !PasswordHasher.verify(password, user.getPassword())) {
+            long lockMs = loginLockMinutes * 60_000L;
+            loginFail.compute(key, (k, v) -> {
+                if (v == null || (v[1] > 0 && now >= v[1])) {
+                    return new long[]{1, 0};
+                }
+                long fails = v[0] + 1;
+                return new long[]{fails, fails >= loginMaxFail ? now + lockMs : 0};
+            });
             throw new BizException("用户名或密码错误");
         }
         if (user.getStatus() == null || user.getStatus() != 1) {
             throw new BizException("账号已停用");
         }
+        loginFail.remove(key);
         user.setLastLoginAt(LocalDateTime.now());
         userMapper.updateById(user);
         LoginResult r = new LoginResult();

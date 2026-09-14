@@ -66,3 +66,7 @@ inv:
   tax:
     # 税负率预警阈值
     burden-warn: ${INV_TAX_BURDEN_WARN:0.03}
+  login:
+    # 同一用户名连续失败次数 / 锁定分钟数（内存级，重启清零）
+    max-fail: ${INV_LOGIN_MAX_FAIL:5}
+    lock-minutes: ${INV_LOGIN_LOCK_MINUTES:15}
