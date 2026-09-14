@@ -1,10 +1,11 @@
 <template>
-  <CrudPage title="往来单位" :api="basic.partner" :columns="columns" />
+  <CrudPage title="往来单位" :api="basic.partner" :columns="columns" :can-write="canBasicWrite()" />
 </template>
 
 <script setup>
 import CrudPage from '../../components/CrudPage.vue'
 import { basic } from '../../api'
+import { canBasicWrite } from '../../auth'
 import { statusCol } from '../../composables/useOptions'
 
 const columns = [

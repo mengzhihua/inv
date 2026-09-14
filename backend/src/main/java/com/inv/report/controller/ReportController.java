@@ -1,6 +1,7 @@
 package com.inv.report.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.inv.common.Csv;
 import com.inv.common.R;
 import com.inv.expense.entity.ExpenseInvoice;
@@ -46,7 +47,6 @@ public class ReportController {
     public R<Map<String, Object>> dashboard() {
         Map<String, Object> r = new HashMap<>();
         String today = LocalDate.now().toString();
-        String month = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM"));
 
         r.put("pendingSubmit", requestMapper.selectCount(new QueryWrapper<com.inv.sales.entity.InvoiceRequest>()
                 .eq("status", "SUBMITTED")));
@@ -56,8 +56,12 @@ public class ReportController {
                 .eq("issue_date", today).ne("status", "CANCELLED")));
         BigDecimal todayAmount = sum("SELECT COALESCE(SUM(total_with_tax),0) FROM inv_invoice WHERE issue_date = CURRENT_DATE AND status <> 'CANCELLED'");
         r.put("todayAmount", todayAmount);
-        r.put("monthOutputTax", sum("SELECT COALESCE(SUM(total_tax),0) FROM inv_invoice WHERE TO_CHAR(issue_date,'YYYY-MM') = '" + month + "' AND status <> 'CANCELLED'"));
-        r.put("monthInputTax", sum("SELECT COALESCE(SUM(total_tax),0) FROM inv_input_invoice WHERE TO_CHAR(issue_date,'YYYY-MM') = '" + month + "' AND status <> 'RED_FLUSHED'"));
+        LocalDate monthStart = LocalDate.now().withDayOfMonth(1);
+        LocalDate nextMonth = monthStart.plusMonths(1);
+        r.put("monthOutputTax", jdbc.queryForObject("SELECT COALESCE(SUM(total_tax),0) FROM inv_invoice WHERE issue_date >= ? AND issue_date < ? AND status <> 'CANCELLED'",
+                BigDecimal.class, monthStart, nextMonth));
+        r.put("monthInputTax", jdbc.queryForObject("SELECT COALESCE(SUM(total_tax),0) FROM inv_input_invoice WHERE issue_date >= ? AND issue_date < ? AND status <> 'RED_FLUSHED'",
+                BigDecimal.class, monthStart, nextMonth));
         r.put("pendingVerify", inputMapper.selectCount(new QueryWrapper<InputInvoice>().eq("verify_status", "UNVERIFIED")));
         r.put("abnormalInvoices", inputMapper.selectCount(new QueryWrapper<InputInvoice>().eq("status", "ABNORMAL")));
         r.put("pendingCheck", inputMapper.selectCount(new QueryWrapper<InputInvoice>().eq("deduct_status", "PENDING").eq("verify_status", "VERIFIED")));
@@ -72,12 +76,15 @@ public class ReportController {
         // 12 月趋势：每月开票张数与金额
         List<Map<String, Object>> trend = new ArrayList<>();
         for (int i = 11; i >= 0; i--) {
-            String m = LocalDate.now().minusMonths(i).format(DateTimeFormatter.ofPattern("yyyy-MM"));
+            LocalDate first = LocalDate.now().minusMonths(i).withDayOfMonth(1);
+            LocalDate last = first.plusMonths(1);
             Map<String, Object> row = new HashMap<>();
-            row.put("month", m);
+            row.put("month", first.format(DateTimeFormatter.ofPattern("yyyy-MM")));
             row.put("count", invoiceMapper.selectCount(new QueryWrapper<com.inv.sales.entity.Invoice>()
-                    .apply("TO_CHAR(issue_date,'YYYY-MM') = '" + m + "'").ne("status", "CANCELLED")));
-            row.put("amount", sum("SELECT COALESCE(SUM(total_with_tax),0) FROM inv_invoice WHERE TO_CHAR(issue_date,'YYYY-MM') = '" + m + "' AND status <> 'CANCELLED'"));
+                    .ge("issue_date", first).lt("issue_date", last).ne("status", "CANCELLED")));
+            row.put("amount", jdbc.queryForObject(
+                    "SELECT COALESCE(SUM(total_with_tax),0) FROM inv_invoice WHERE issue_date >= ? AND issue_date < ? AND status <> 'CANCELLED'",
+                    BigDecimal.class, first, last));
             trend.add(row);
         }
         r.put("trend", trend);
@@ -89,12 +96,28 @@ public class ReportController {
     public R<List<Map<String, Object>>> salesSummary(@RequestParam(defaultValue = "month") String dimension,
                                                      @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
                                                      @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+        if ("month".equals(dimension)) {
+            LocalDate start = from == null ? LocalDate.now().minusMonths(11).withDayOfMonth(1) : from.withDayOfMonth(1);
+            LocalDate end = to == null ? LocalDate.now().plusMonths(1).withDayOfMonth(1) : to.withDayOfMonth(1);
+            List<Map<String, Object>> rows = new ArrayList<>();
+            for (LocalDate first = start; first.isBefore(end); first = first.plusMonths(1)) {
+                LocalDate next = first.plusMonths(1);
+                Map<String, Object> row = new HashMap<>();
+                row.put("dim", first.format(DateTimeFormatter.ofPattern("yyyy-MM")));
+                row.put("cnt", jdbc.queryForObject("SELECT COUNT(*) FROM inv_invoice WHERE issue_date >= ? AND issue_date < ? AND status <> 'CANCELLED'", Long.class, first, next));
+                row.put("amount", jdbc.queryForObject("SELECT COALESCE(SUM(total_amount),0) FROM inv_invoice WHERE issue_date >= ? AND issue_date < ? AND status <> 'CANCELLED'", BigDecimal.class, first, next));
+                row.put("tax", jdbc.queryForObject("SELECT COALESCE(SUM(total_tax),0) FROM inv_invoice WHERE issue_date >= ? AND issue_date < ? AND status <> 'CANCELLED'", BigDecimal.class, first, next));
+                row.put("withTax", jdbc.queryForObject("SELECT COALESCE(SUM(total_with_tax),0) FROM inv_invoice WHERE issue_date >= ? AND issue_date < ? AND status <> 'CANCELLED'", BigDecimal.class, first, next));
+                rows.add(row);
+            }
+            return R.ok(rows);
+        }
         String col;
         switch (dimension) {
             case "entity": col = "tax_entity_id"; break;
             case "customer": col = "buyer_name"; break;
             case "type": col = "invoice_type"; break;
-            default: col = "TO_CHAR(issue_date,'YYYY-MM')"; break;
+            default: col = "buyer_name"; break;
         }
         QueryWrapper<com.inv.sales.entity.Invoice> qw = new QueryWrapper<>();
         qw.select(col + " AS dim", "COUNT(*) AS cnt", "SUM(total_amount) AS amount",
@@ -137,12 +160,13 @@ public class ReportController {
     @GetMapping("/customer-rank")
     public R<List<Map<String, Object>>> customerRank(@RequestParam(defaultValue = "10") int limit) {
         QueryWrapper<com.inv.sales.entity.Invoice> qw = new QueryWrapper<>();
+        int n = Math.max(1, Math.min(limit, 100));
+        Page<Map<String, Object>> page = new Page<>(1, n);
         qw.select("buyer_name AS dim", "COUNT(*) AS cnt", "SUM(total_with_tax) AS withTax")
                 .ne("status", "CANCELLED")
                 .groupBy("buyer_name")
-                .orderByDesc("withTax")
-                .last("LIMIT " + Math.min(limit, 100));
-        return R.ok(invoiceMapper.selectMaps(qw));
+                .orderByDesc("withTax");
+        return R.ok(invoiceMapper.selectMapsPage(page, qw).getRecords());
     }
 
     @GetMapping("/sales-summary/export")

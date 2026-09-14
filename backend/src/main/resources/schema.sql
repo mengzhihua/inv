@@ -16,9 +16,9 @@ CREATE TABLE IF NOT EXISTS inv_user (
     status        INT DEFAULT 1,
     last_login_at TIMESTAMP,
     created_at    TIMESTAMP,
-    updated_at    TIMESTAMP
+    updated_at    TIMESTAMP,
+    CONSTRAINT uk_inv_user_username UNIQUE (username)
 );
-CREATE UNIQUE INDEX IF NOT EXISTS uk_inv_user_username ON inv_user (username);
 
 CREATE TABLE IF NOT EXISTS inv_op_log (
     id          BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -39,8 +39,8 @@ CREATE TABLE IF NOT EXISTS inv_integration_log (
     target        VARCHAR(64),
     action        VARCHAR(64),
     ref_no        VARCHAR(128),
-    request_body  CLOB,
-    response_body CLOB,
+    request_body  TEXT,
+    response_body TEXT,
     success       INT,
     error_msg     VARCHAR(512),
     created_at    TIMESTAMP,
@@ -63,9 +63,9 @@ CREATE TABLE IF NOT EXISTS inv_tax_entity (
     reviewer      VARCHAR(64),
     status        INT DEFAULT 1,
     created_at    TIMESTAMP,
-    updated_at    TIMESTAMP
+    updated_at    TIMESTAMP,
+    CONSTRAINT uk_inv_tax_entity_code UNIQUE (code)
 );
-CREATE UNIQUE INDEX IF NOT EXISTS uk_inv_tax_entity_code ON inv_tax_entity (code);
 
 CREATE TABLE IF NOT EXISTS inv_tax_entity_limit (
     id            BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -73,9 +73,9 @@ CREATE TABLE IF NOT EXISTS inv_tax_entity_limit (
     invoice_type  VARCHAR(20) NOT NULL,
     max_amount    DECIMAL(18,2) NOT NULL,
     created_at    TIMESTAMP,
-    updated_at    TIMESTAMP
+    updated_at    TIMESTAMP,
+    KEY idx_inv_te_limit (tax_entity_id, invoice_type)
 );
-CREATE INDEX IF NOT EXISTS idx_inv_te_limit ON inv_tax_entity_limit (tax_entity_id, invoice_type);
 
 CREATE TABLE IF NOT EXISTS inv_partner (
     id           BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -106,9 +106,9 @@ CREATE TABLE IF NOT EXISTS inv_goods (
     preferential_policy VARCHAR(16) DEFAULT 'NONE',
     status             INT DEFAULT 1,
     created_at         TIMESTAMP,
-    updated_at         TIMESTAMP
+    updated_at         TIMESTAMP,
+    CONSTRAINT uk_inv_goods_code UNIQUE (code)
 );
-CREATE UNIQUE INDEX IF NOT EXISTS uk_inv_goods_code ON inv_goods (code);
 
 CREATE TABLE IF NOT EXISTS inv_invoice_stock (
     id            BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -121,9 +121,9 @@ CREATE TABLE IF NOT EXISTS inv_invoice_stock (
     remaining     INT NOT NULL,
     status        INT DEFAULT 1,
     created_at    TIMESTAMP,
-    updated_at    TIMESTAMP
+    updated_at    TIMESTAMP,
+    KEY idx_inv_stock (tax_entity_id, invoice_type, status)
 );
-CREATE INDEX IF NOT EXISTS idx_inv_stock ON inv_invoice_stock (tax_entity_id, invoice_type, status);
 
 -- ============ 销项 ============
 CREATE TABLE IF NOT EXISTS inv_invoice_request (
@@ -147,11 +147,11 @@ CREATE TABLE IF NOT EXISTS inv_invoice_request (
     invoice_id          BIGINT,
     with_list           INT DEFAULT 0,
     created_at          TIMESTAMP,
-    updated_at          TIMESTAMP
+    updated_at          TIMESTAMP,
+    CONSTRAINT uk_inv_request_no UNIQUE (request_no),
+    UNIQUE KEY uk_inv_request_extref (source, ext_ref),
+    KEY idx_inv_request_status (status)
 );
-CREATE UNIQUE INDEX IF NOT EXISTS uk_inv_request_no ON inv_invoice_request (request_no);
-CREATE UNIQUE INDEX IF NOT EXISTS uk_inv_request_extref ON inv_invoice_request (source, ext_ref);
-CREATE INDEX IF NOT EXISTS idx_inv_request_status ON inv_invoice_request (status);
 
 CREATE TABLE IF NOT EXISTS inv_invoice_request_line (
     id                BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -168,9 +168,9 @@ CREATE TABLE IF NOT EXISTS inv_invoice_request_line (
     tax_amount        DECIMAL(18,2),
     price_include_tax INT DEFAULT 0,
     created_at        TIMESTAMP,
-    updated_at        TIMESTAMP
+    updated_at        TIMESTAMP,
+    KEY idx_inv_request_line (request_id)
 );
-CREATE INDEX IF NOT EXISTS idx_inv_request_line ON inv_invoice_request_line (request_id);
 
 CREATE TABLE IF NOT EXISTS inv_invoice (
     id                   BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -204,10 +204,11 @@ CREATE TABLE IF NOT EXISTS inv_invoice (
     red_amount           DECIMAL(18,2) DEFAULT 0,
     red_tax              DECIMAL(18,2) DEFAULT 0,
     created_at           TIMESTAMP,
-    updated_at           TIMESTAMP
+    updated_at           TIMESTAMP,
+    CONSTRAINT uk_inv_invoice_no UNIQUE (invoice_code, invoice_no),
+    UNIQUE KEY uk_inv_invoice_request (request_id),
+    KEY idx_inv_invoice_q (tax_entity_id, invoice_type, status, issue_date)
 );
-CREATE UNIQUE INDEX IF NOT EXISTS uk_inv_invoice_no ON inv_invoice (invoice_code, invoice_no);
-CREATE INDEX IF NOT EXISTS idx_inv_invoice_q ON inv_invoice (tax_entity_id, invoice_type, status, issue_date);
 
 CREATE TABLE IF NOT EXISTS inv_invoice_line (
     id                BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -222,9 +223,9 @@ CREATE TABLE IF NOT EXISTS inv_invoice_line (
     tax_rate          DECIMAL(5,4),
     tax_amount        DECIMAL(18,2),
     created_at        TIMESTAMP,
-    updated_at        TIMESTAMP
+    updated_at        TIMESTAMP,
+    KEY idx_inv_invoice_line (invoice_id)
 );
-CREATE INDEX IF NOT EXISTS idx_inv_invoice_line ON inv_invoice_line (invoice_id);
 
 CREATE TABLE IF NOT EXISTS inv_invoice_event (
     id         BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -233,9 +234,9 @@ CREATE TABLE IF NOT EXISTS inv_invoice_event (
     detail     VARCHAR(512),
     operator   VARCHAR(64),
     created_at TIMESTAMP,
-    updated_at TIMESTAMP
+    updated_at TIMESTAMP,
+    KEY idx_inv_event (invoice_id)
 );
-CREATE INDEX IF NOT EXISTS idx_inv_event ON inv_invoice_event (invoice_id);
 
 CREATE TABLE IF NOT EXISTS inv_red_info (
     id              BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -247,9 +248,9 @@ CREATE TABLE IF NOT EXISTS inv_red_info (
     total_with_tax  DECIMAL(18,2),
     status          VARCHAR(16) DEFAULT 'DRAFT',
     created_at      TIMESTAMP,
-    updated_at      TIMESTAMP
+    updated_at      TIMESTAMP,
+    KEY idx_inv_red_info (invoice_id, status)
 );
-CREATE INDEX IF NOT EXISTS idx_inv_red_info ON inv_red_info (invoice_id, status);
 
 CREATE TABLE IF NOT EXISTS inv_red_info_line (
     id                BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -264,9 +265,9 @@ CREATE TABLE IF NOT EXISTS inv_red_info_line (
     tax_rate          DECIMAL(5,4),
     tax_amount        DECIMAL(18,2),
     created_at        TIMESTAMP,
-    updated_at        TIMESTAMP
+    updated_at        TIMESTAMP,
+    KEY idx_inv_red_line (red_info_id)
 );
-CREATE INDEX IF NOT EXISTS idx_inv_red_line ON inv_red_info_line (red_info_id);
 
 CREATE TABLE IF NOT EXISTS inv_delivery_log (
     id         BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -275,9 +276,9 @@ CREATE TABLE IF NOT EXISTS inv_delivery_log (
     target     VARCHAR(128),
     status     VARCHAR(16),
     created_at TIMESTAMP,
-    updated_at TIMESTAMP
+    updated_at TIMESTAMP,
+    KEY idx_inv_delivery (invoice_id)
 );
-CREATE INDEX IF NOT EXISTS idx_inv_delivery ON inv_delivery_log (invoice_id);
 
 -- ============ 进项 ============
 CREATE TABLE IF NOT EXISTS inv_input_invoice (
@@ -312,10 +313,10 @@ CREATE TABLE IF NOT EXISTS inv_input_invoice (
     account_status VARCHAR(16) DEFAULT 'UNPOSTED',
     voucher_no     VARCHAR(32),
     created_at     TIMESTAMP,
-    updated_at     TIMESTAMP
+    updated_at     TIMESTAMP,
+    CONSTRAINT uk_inv_input_no UNIQUE (invoice_code, invoice_no),
+    KEY idx_inv_input_q (status, verify_status, deduct_status)
 );
-CREATE UNIQUE INDEX IF NOT EXISTS uk_inv_input_no ON inv_input_invoice (invoice_code, invoice_no);
-CREATE INDEX IF NOT EXISTS idx_inv_input_q ON inv_input_invoice (status, verify_status, deduct_status);
 
 CREATE TABLE IF NOT EXISTS inv_input_invoice_line (
     id                BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -330,9 +331,9 @@ CREATE TABLE IF NOT EXISTS inv_input_invoice_line (
     tax_rate          DECIMAL(5,4),
     tax_amount        DECIMAL(18,2),
     created_at        TIMESTAMP,
-    updated_at        TIMESTAMP
+    updated_at        TIMESTAMP,
+    KEY idx_inv_input_line (input_invoice_id)
 );
-CREATE INDEX IF NOT EXISTS idx_inv_input_line ON inv_input_invoice_line (input_invoice_id);
 
 CREATE TABLE IF NOT EXISTS inv_deduction_batch (
     id            BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -370,9 +371,9 @@ CREATE TABLE IF NOT EXISTS inv_expense_invoice (
     risk_items     VARCHAR(2000),
     reject_reason  VARCHAR(255),
     created_at     TIMESTAMP,
-    updated_at     TIMESTAMP
+    updated_at     TIMESTAMP,
+    KEY idx_inv_expense (status)
 );
-CREATE INDEX IF NOT EXISTS idx_inv_expense ON inv_expense_invoice (status);
 
 -- ============ 税务 ============
 CREATE TABLE IF NOT EXISTS inv_tax_period (
@@ -381,9 +382,9 @@ CREATE TABLE IF NOT EXISTS inv_tax_period (
     period        VARCHAR(7) NOT NULL,
     status        VARCHAR(16) DEFAULT 'OPEN',
     created_at    TIMESTAMP,
-    updated_at    TIMESTAMP
+    updated_at    TIMESTAMP,
+    CONSTRAINT uk_inv_period UNIQUE (tax_entity_id, period)
 );
-CREATE UNIQUE INDEX IF NOT EXISTS uk_inv_period ON inv_tax_period (tax_entity_id, period);
 
 -- ============ 电子档案 ============
 CREATE TABLE IF NOT EXISTS inv_archive (
@@ -397,6 +398,6 @@ CREATE TABLE IF NOT EXISTS inv_archive (
     ofd_url      VARCHAR(255),
     meta         VARCHAR(2000),
     created_at   TIMESTAMP,
-    updated_at   TIMESTAMP
+    updated_at   TIMESTAMP,
+    KEY idx_inv_archive (issue_month, direction)
 );
-CREATE INDEX IF NOT EXISTS idx_inv_archive ON inv_archive (issue_month, direction);

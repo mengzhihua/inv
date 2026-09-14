@@ -12,6 +12,7 @@ const DICT = {
   // 申请
   SUBMITTED: ['已提交', 'primary'],
   APPROVED: ['已审核', 'warning'],
+  ISSUING: ['开票中', 'warning'],
   REJECTED: ['已退回', 'danger'],
   // 发票
   ISSUED: ['已开出', 'success'],

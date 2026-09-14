@@ -11,7 +11,7 @@
           </el-select>
         </template>
         <el-button type="primary" @click="load"><el-icon><Search /></el-icon>查询</el-button>
-        <el-button type="success" @click="openForm()"><el-icon><Plus /></el-icon>新增{{ title }}</el-button>
+        <el-button v-if="canWrite" type="success" @click="openForm()"><el-icon><Plus /></el-icon>新增{{ title }}</el-button>
         <slot name="toolbar" />
       </div>
 
@@ -30,8 +30,8 @@
         </el-table-column>
         <el-table-column label="操作" width="140" fixed="right">
           <template #default="{ row }">
-            <el-button link type="primary" size="small" @click="openForm(row)">编辑</el-button>
-            <el-popconfirm title="确认删除?" @confirm="remove(row)">
+            <el-button v-if="canWrite" link type="primary" size="small" @click="openForm(row)">编辑</el-button>
+            <el-popconfirm v-if="canWrite" title="确认删除?" @confirm="remove(row)">
               <template #reference><el-button link type="danger" size="small">删除</el-button></template>
             </el-popconfirm>
           </template>
@@ -77,7 +77,8 @@ const props = defineProps({
   api: { type: Object, required: true },
   columns: { type: Array, required: true },
   /** map of option-source name -> array of {label,value} (for select columns using `options: 'name'`) */
-  optionSources: { type: Object, default: () => ({}) }
+  optionSources: { type: Object, default: () => ({}) },
+  canWrite: { type: Boolean, default: true }
 })
 
 const rows = ref([])

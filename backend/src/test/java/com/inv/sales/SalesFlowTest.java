@@ -277,6 +277,91 @@ class SalesFlowTest {
     }
 
     @Test
+    void concurrentIssueSameRequestOnlyOneSucceeds() throws Exception {
+        TaxEntity e = fx.newEntity("T-ISSUECC", "91310000TISSUECC1");
+        fx.stock(e.getId(), "E_NORMAL", "999000000021", "40000001", "40000050");
+        InvoiceRequest created = requestService.create(TestFixtures.req(e.getId(), "E_NORMAL"),
+                TestFixtures.one("100.00", "0.13"));
+        requestService.transit(created.getId(), "submit", null);
+        requestService.transit(created.getId(), "approve", null);
+
+        int threads = 20;
+        CountDownLatch start = new CountDownLatch(1);
+        AtomicInteger success = new AtomicInteger();
+        ConcurrentLinkedQueue<Throwable> errs = new ConcurrentLinkedQueue<>();
+        TransactionTemplate tx = new TransactionTemplate(txManager);
+        List<Thread> ts = new ArrayList<>();
+        for (int i = 0; i < threads; i++) {
+            Thread t = new Thread(() -> {
+                try {
+                    start.await();
+                    tx.execute(status -> {
+                        invoiceService.issue(created.getId());
+                        success.incrementAndGet();
+                        return null;
+                    });
+                } catch (Throwable ex) {
+                    errs.add(ex);
+                }
+            });
+            ts.add(t);
+            t.start();
+        }
+        start.countDown();
+        for (Thread t : ts) {
+            t.join();
+        }
+        assertEquals(1, success.get());
+        assertTrue(errs.size() >= threads - 1);
+        assertEquals(1, invoiceMapper.selectCount(new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<Invoice>()
+                .eq("request_id", created.getId())));
+    }
+
+    @Test
+    void concurrentRedFlushSameOriginalOnlyOneSucceeds() throws Exception {
+        Invoice inv = approvedInvoice("R3", "E_SPECIAL", "1000.00", "0.13");
+        RedInfoLine rl = new RedInfoLine();
+        rl.setGoodsName("测试商品");
+        rl.setAmount(new BigDecimal("600.00"));
+        rl.setTaxRate(new BigDecimal("0.13"));
+        rl.setTaxAmount(new BigDecimal("78.00"));
+        RedInfo i1 = invoiceService.createRedInfo(inv.getId(), "RETURN", Collections.singletonList(rl));
+        RedInfo i2 = invoiceService.createRedInfo(inv.getId(), "RETURN", Collections.singletonList(rl));
+        invoiceService.confirmRedInfo(i1.getId());
+        invoiceService.confirmRedInfo(i2.getId());
+
+        CountDownLatch start = new CountDownLatch(1);
+        AtomicInteger success = new AtomicInteger();
+        ConcurrentLinkedQueue<Throwable> errs = new ConcurrentLinkedQueue<>();
+        TransactionTemplate tx = new TransactionTemplate(txManager);
+        List<Thread> ts = new ArrayList<>();
+        for (final Long id : new Long[]{i1.getId(), i2.getId()}) {
+            Thread t = new Thread(() -> {
+                try {
+                    start.await();
+                    tx.execute(status -> {
+                        invoiceService.redFlush(id);
+                        success.incrementAndGet();
+                        return null;
+                    });
+                } catch (Throwable ex) {
+                    errs.add(ex);
+                }
+            });
+            ts.add(t);
+            t.start();
+        }
+        start.countDown();
+        for (Thread t : ts) {
+            t.join();
+        }
+        assertEquals(1, success.get());
+        assertEquals(1, invoiceMapper.selectCount(new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<Invoice>()
+                .eq("red_of_invoice_id", inv.getId())));
+        assertEquals(1, errs.size());
+    }
+
+    @Test
     void requestStateMachine() {
         TaxEntity e = fx.newEntity("T-SM", "91310000TESTSM001");
         InvoiceRequest r = requestService.create(TestFixtures.req(e.getId(), "E_NORMAL"), TestFixtures.one("10.00", "0.13"));
