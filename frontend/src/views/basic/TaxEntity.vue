@@ -4,7 +4,7 @@
       <div class="toolbar">
         <el-input v-model="query.keyword" placeholder="编码/名称/税号" clearable @keyup.enter="load" @clear="load" />
         <el-button type="primary" @click="load"><el-icon><Search /></el-icon>查询</el-button>
-        <el-button v-if="canEditMaster()" type="success" @click="openForm()"><el-icon><Plus /></el-icon>新增主体</el-button>
+        <el-button v-if="canBasicWrite()" type="success" @click="openForm()"><el-icon><Plus /></el-icon>新增主体</el-button>
       </div>
       <el-table :data="rows" v-loading="loading" border stripe size="small">
         <el-table-column prop="code" label="编码" width="80" />
@@ -15,9 +15,9 @@
         <el-table-column label="状态" width="80"><template #default="{ row }"><el-tag :type="row.status === 1 ? 'success' : 'danger'" size="small">{{ row.status === 1 ? '启用' : '停用' }}</el-tag></template></el-table-column>
         <el-table-column label="操作" width="180" fixed="right">
           <template #default="{ row }">
-            <el-button link type="primary" size="small" @click="openForm(row)">编辑</el-button>
+            <el-button v-if="canBasicWrite()" link type="primary" size="small" @click="openForm(row)">编辑</el-button>
             <el-button link type="warning" size="small" @click="openLimits(row)">票种限额</el-button>
-            <el-popconfirm v-if="canEditMaster()" title="确认删除?" @confirm="remove(row)">
+            <el-popconfirm v-if="canBasicWrite()" title="确认删除?" @confirm="remove(row)">
               <template #reference><el-button link type="danger" size="small">删除</el-button></template>
             </el-popconfirm>
           </template>
@@ -54,10 +54,10 @@
         <el-table-column label="票种"><template #default="{ row }"><StatusTag :value="row.invoiceType" /></template></el-table-column>
         <el-table-column prop="maxAmount" label="单张开票限额" align="right"><template #default="{ row }">{{ money(row.maxAmount) }}</template></el-table-column>
         <el-table-column width="70"><template #default="{ row }">
-          <el-popconfirm v-if="canEditMaster()" title="删除该限额?" @confirm="removeLimit(row)"><template #reference><el-button link type="danger" size="small">删除</el-button></template></el-popconfirm>
+          <el-popconfirm v-if="canBasicWrite()" title="删除该限额?" @confirm="removeLimit(row)"><template #reference><el-button link type="danger" size="small">删除</el-button></template></el-popconfirm>
         </template></el-table-column>
       </el-table>
-      <el-form v-if="canEditMaster()" inline style="margin-top: 12px">
+      <el-form v-if="canBasicWrite()" inline style="margin-top: 12px">
         <el-form-item label="票种"><el-select v-model="newLimit.invoiceType" style="width: 130px"><el-option v-for="t in INVOICE_TYPES" :key="t.value" :label="t.label" :value="t.value" /></el-select></el-form-item>
         <el-form-item label="限额"><el-input-number v-model="newLimit.maxAmount" :min="0.01" :precision="2" /></el-form-item>
         <el-button type="primary" @click="addLimit">添加</el-button>
@@ -70,7 +70,7 @@
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { basic } from '../../api'
-import { canEditMaster } from '../../auth'
+import { canBasicWrite } from '../../auth'
 import { INVOICE_TYPES, money } from '../../composables/useOptions'
 import StatusTag from '../../components/StatusTag.vue'
 

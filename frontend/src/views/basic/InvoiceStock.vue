@@ -1,11 +1,12 @@
 <template>
-  <CrudPage title="发票号段" :api="basic.stock" :columns="columns" :option-sources="{ taxEntity: entityOptions }" />
+  <CrudPage title="发票号段" :api="basic.stock" :columns="columns" :option-sources="{ taxEntity: entityOptions }" :can-write="canBasicWrite()" />
 </template>
 
 <script setup>
 import { onMounted, ref } from 'vue'
 import CrudPage from '../../components/CrudPage.vue'
 import { basic } from '../../api'
+import { canBasicWrite } from '../../auth'
 import { statusCol, INVOICE_TYPES } from '../../composables/useOptions'
 
 const entityOptions = ref([])

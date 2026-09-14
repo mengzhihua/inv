@@ -26,6 +26,7 @@ export function clearAuth() {
 export const isAdmin = () => auth.user?.role === 'ADMIN'
 export const isFinance = () => ['ADMIN', 'FINANCE'].includes(auth.user?.role)
 export const canWrite = () => auth.user && auth.user.role !== 'VIEWER'
+export const canBasicWrite = isFinance
 export const canApprove = isFinance
 export const canEditMaster = isFinance
 
