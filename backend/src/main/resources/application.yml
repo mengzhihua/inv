@@ -1,0 +1,68 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: inv-backend
+  datasource:
+    # 默认使用内嵌 H2 文件库，零配置启动；生产使用 --spring.profiles.active=mysql
+    url: jdbc:h2:file:./data/inv;MODE=MySQL;DATABASE_TO_LOWER=TRUE;CASE_INSENSITIVE_IDENTIFIERS=TRUE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema.sql
+      data-locations: classpath:data.sql
+      continue-on-error: true
+  h2:
+    console:
+      # 仅开发排障时开启: INV_H2_CONSOLE=true
+      enabled: ${INV_H2_CONSOLE:false}
+      path: /h2
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: GMT+8
+    default-property-inclusion: non_null
+  mvc:
+    format:
+      date: iso
+      date-time: iso
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
+  global-config:
+    banner: false
+    db-config:
+      id-type: auto
+
+logging:
+  level:
+    com.inv: info
+
+inv:
+  auth:
+    # 令牌签名密钥；生产必须设置，否则每次重启随机生成导致全员重新登录
+    secret: ${INV_AUTH_SECRET:}
+    token-ttl: ${INV_TOKEN_TTL:12h}
+    # 首次启动创建 admin 时使用的初始密码；为空则随机生成并打印到启动日志
+    admin-password: ${INV_ADMIN_PASSWORD:}
+  cors:
+    # 允许跨域的前端来源，逗号分隔；前后端同源部署时可设为空
+    origins: ${INV_CORS_ORIGINS:http://localhost:5173}
+  open:
+    # 对外开放接口 /api/open/** 的 X-Api-Key（OMS/BMS/SRM 单据推送）；为空则开放接口全部拒绝
+    api-key: ${INV_OPEN_API_KEY:}
+  mock:
+    # 模拟税控失败开关：开票金额尾数 .99 时返回失败（演示用）
+    tax-fail: ${INV_MOCK_TAX_FAIL:false}
+  expense:
+    # 费用票合规：开票日期距今天数上限 / 单张金额上限
+    max-days: ${INV_EXPENSE_MAX_DAYS:180}
+    single-limit: ${INV_EXPENSE_SINGLE_LIMIT:50000}
+  tax:
+    # 税负率预警阈值
+    burden-warn: ${INV_TAX_BURDEN_WARN:0.03}
