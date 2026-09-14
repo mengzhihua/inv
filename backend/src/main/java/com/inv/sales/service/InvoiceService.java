@@ -375,9 +375,12 @@ public class InvoiceService {
     // ==================== 交付 ====================
     @Transactional
     public DeliveryLog deliver(Long invoiceId, String channel, String target) {
-        Invoice inv = requireInvoice(invoiceId);
-        if (!"ISSUED".equals(inv.getStatus()) && !"RED".equals(inv.getStatus())) {
-            throw new BizException("仅有效发票可交付");
+        Invoice inv = invoiceMapper.selectForUpdate(invoiceId);
+        if (inv == null) {
+            throw new BizException("发票不存在: " + invoiceId);
+        }
+        if (!"ISSUED".equals(inv.getStatus())) {
+            throw new BizException("仅已开出发票可交付");
         }
         if (!"EMAIL".equals(channel) && !"SMS".equals(channel)) {
             throw new BizException("交付渠道仅支持 EMAIL/SMS");

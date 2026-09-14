@@ -74,7 +74,11 @@ class ReportTest {
 
         BizException maxDate = assertThrows(BizException.class, () -> reportController.salesSummary(
                 "month", null, LocalDate.MAX));
-        assertEquals("结束日期非法", maxDate.getMessage());
+        assertEquals("日期超出可查询范围", maxDate.getMessage());
+
+        BizException oldDate = assertThrows(BizException.class, () -> reportController.salesSummary(
+                "month", LocalDate.of(1800, 1, 1), null));
+        assertEquals("日期超出可查询范围", oldDate.getMessage());
     }
 
     private Invoice issue(TaxEntity entity, String amount) {

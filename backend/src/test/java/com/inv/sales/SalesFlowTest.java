@@ -273,6 +273,59 @@ class SalesFlowTest {
         assertEquals(1, errs.size());
     }
 
+    @Test
+    void concurrentDeliverAndCancelCannotMixStates() throws Exception {
+        Invoice inv = approvedInvoice("DC", "NORMAL", "500.00", "0.13");
+        CountDownLatch start = new CountDownLatch(1);
+        AtomicInteger deliverSuccess = new AtomicInteger();
+        AtomicInteger cancelSuccess = new AtomicInteger();
+        ConcurrentLinkedQueue<Throwable> errs = new ConcurrentLinkedQueue<>();
+        TransactionTemplate tx = new TransactionTemplate(txManager);
+        List<Thread> ts = new ArrayList<>();
+        final Long invoiceId = inv.getId();
+        ts.add(new Thread(() -> {
+            try {
+                start.await();
+                tx.execute(status -> {
+                    invoiceService.deliver(invoiceId, "EMAIL", "a@b.com");
+                    deliverSuccess.incrementAndGet();
+                    return null;
+                });
+            } catch (Throwable ex) {
+                errs.add(ex);
+            }
+        }));
+        ts.add(new Thread(() -> {
+            try {
+                start.await();
+                tx.execute(status -> {
+                    invoiceService.cancel(invoiceId, "并发测试");
+                    cancelSuccess.incrementAndGet();
+                    return null;
+                });
+            } catch (Throwable ex) {
+                errs.add(ex);
+            }
+        }));
+        for (Thread t : ts) {
+            t.start();
+        }
+        start.countDown();
+        for (Thread t : ts) {
+            t.join();
+        }
+
+        Invoice finalInvoice = invoiceService.requireInvoice(invoiceId);
+        assertEquals(1, deliverSuccess.get() + cancelSuccess.get());
+        assertEquals(1, errs.size());
+        if (cancelSuccess.get() == 1) {
+            assertEquals("CANCELLED", finalInvoice.getStatus());
+        } else {
+            assertEquals("ISSUED", finalInvoice.getStatus());
+            assertEquals("DELIVERED", finalInvoice.getDeliveryStatus());
+        }
+    }
+
     @Autowired
     com.inv.sales.mapper.InvoiceMapper invoiceMapper;
 

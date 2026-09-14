@@ -97,13 +97,15 @@ public class UserService implements ApplicationRunner {
         User user = userMapper.selectOne(new LambdaQueryWrapper<User>().eq(User::getUsername, username));
         if (user == null || !PasswordHasher.verify(password, user.getPassword())) {
             long lockMs = loginLockMinutes * 60_000L;
-            loginFail.compute(key, (k, v) -> {
-                if (v == null || v.length < 3 || (v[2] > 0 && now - v[2] >= lockMs)) {
-                    return new long[]{1, 0, now};
-                }
-                long fails = v[0] + 1;
-                return new long[]{fails, fails >= loginMaxFail ? now + lockMs : 0, now};
-            });
+            if (loginFail.size() < MAX_LOGIN_FAILURE_ENTRIES || loginFail.containsKey(key)) {
+                loginFail.compute(key, (k, v) -> {
+                    if (v == null || v.length < 3 || (v[2] > 0 && now - v[2] >= lockMs)) {
+                        return new long[]{1, 0, now};
+                    }
+                    long fails = v[0] + 1;
+                    return new long[]{fails, fails >= loginMaxFail ? now + lockMs : 0, now};
+                });
+            }
             throw new BizException("用户名或密码错误");
         }
         if (user.getStatus() == null || user.getStatus() != 1) {

@@ -100,8 +100,9 @@ public class ReportController {
         if (from != null && to != null && from.isAfter(to)) {
             throw new BizException("开始日期不能晚于结束日期");
         }
-        if (to != null && LocalDate.MAX.equals(to)) {
-            throw new BizException("结束日期非法");
+        if ((from != null && (from.getYear() > 9999 || from.getYear() < 1900))
+                || (to != null && (to.getYear() > 9999 || to.getYear() < 1900))) {
+            throw new BizException("日期超出可查询范围");
         }
         if ("month".equals(dimension)) {
             boolean defaultRange = from == null && to == null;
