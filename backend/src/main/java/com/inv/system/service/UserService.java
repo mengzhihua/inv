@@ -20,6 +20,7 @@ import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
@@ -27,6 +28,7 @@ import java.util.concurrent.ConcurrentHashMap;
 @RequiredArgsConstructor
 public class UserService implements ApplicationRunner {
     private static final List<String> ROLES = Arrays.asList(User.ADMIN, User.FINANCE, User.OPERATOR, User.VIEWER);
+    private static final int MAX_LOGIN_FAILURE_ENTRIES = 10000;
 
     private final UserMapper userMapper;
     private final TokenService tokenService;
@@ -83,6 +85,10 @@ public class UserService implements ApplicationRunner {
     public LoginResult login(String username, String password) {
         String key = username == null ? "" : username;
         long now = System.currentTimeMillis();
+        cleanupLoginFailures(now);
+        if (loginFail.size() >= MAX_LOGIN_FAILURE_ENTRIES && !loginFail.containsKey(key)) {
+            loginFail.clear();
+        }
         long[] rec = loginFail.get(key);
         if (rec != null && rec[0] >= loginMaxFail && now < rec[1]) {
             throw new BizException("账号已锁定，请稍后再试");
@@ -91,11 +97,11 @@ public class UserService implements ApplicationRunner {
         if (user == null || !PasswordHasher.verify(password, user.getPassword())) {
             long lockMs = loginLockMinutes * 60_000L;
             loginFail.compute(key, (k, v) -> {
-                if (v == null || (v[1] > 0 && now >= v[1])) {
-                    return new long[]{1, 0};
+                if (v == null || v.length < 3 || (v[2] > 0 && now - v[2] >= lockMs)) {
+                    return new long[]{1, 0, now};
                 }
                 long fails = v[0] + 1;
-                return new long[]{fails, fails >= loginMaxFail ? now + lockMs : 0};
+                return new long[]{fails, fails >= loginMaxFail ? now + lockMs : 0, now};
             });
             throw new BizException("用户名或密码错误");
         }
@@ -109,6 +115,19 @@ public class UserService implements ApplicationRunner {
         r.setToken(tokenService.issue(user.getId(), user.getUsername()));
         r.setUser(user);
         return r;
+    }
+
+    private void cleanupLoginFailures(long now) {
+        long expiry = loginLockMinutes * 60_000L;
+        for (Map.Entry<String, long[]> entry : loginFail.entrySet()) {
+            long[] record = entry.getValue();
+            long lastFail = record.length > 2 ? record[2] : 0;
+            boolean expired = (record[1] > 0 && now >= record[1])
+                    || (lastFail > 0 && now - lastFail >= expiry);
+            if (expired) {
+                loginFail.remove(entry.getKey(), record);
+            }
+        }
     }
 
     @Transactional

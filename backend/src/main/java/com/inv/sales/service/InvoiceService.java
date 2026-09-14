@@ -290,6 +290,9 @@ public class InvoiceService {
         if (orig == null) {
             throw new BizException("发票不存在: " + info.getInvoiceId());
         }
+        if (!"ISSUED".equals(orig.getStatus())) {
+            throw new BizException("原票状态为 " + orig.getStatus() + "，不可红冲");
+        }
         // 重新校验未超过原票剩余可红金额（多张红字信息表可能先后确认）
         BigDecimal remainAmount = orig.getTotalAmount().subtract(null2(orig.getRedAmount()));
         BigDecimal remainTax = orig.getTotalTax().subtract(null2(orig.getRedTax()));
