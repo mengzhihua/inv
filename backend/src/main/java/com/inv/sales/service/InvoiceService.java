@@ -78,13 +78,13 @@ public class InvoiceService {
     // ==================== 开票 ====================
     @Transactional
     public Invoice issue(Long requestId) {
+        // 原子占用：仅 APPROVED 且未开票的申请可进入开票流程，异常回滚自动恢复 APPROVED
+        int claimed = jdbc.update("UPDATE inv_invoice_request SET status = 'ISSUING', updated_at = CURRENT_TIMESTAMP"
+                + " WHERE id = ? AND status = 'APPROVED' AND invoice_id IS NULL", requestId);
+        if (claimed != 1) {
+            throw new BizException("申请不可开票或正在开票");
+        }
         InvoiceRequest req = requestService.require(requestId);
-        if (!"APPROVED".equals(req.getStatus())) {
-            throw new BizException("仅已审核（APPROVED）的申请可开票，当前 " + req.getStatus());
-        }
-        if (req.getInvoiceId() != null) {
-            throw new BizException("该申请已开票");
-        }
         // 模拟税控失败：含税金额尾数 .99
         if (mockTaxFail && req.getTotalWithTax() != null
                 && req.getTotalWithTax().remainder(BigDecimal.ONE).movePointRight(2).intValue() == 99) {
@@ -285,7 +285,11 @@ public class InvoiceService {
         if (!"CONFIRMED".equals(info.getStatus())) {
             throw new BizException("红字信息表须先确认（CONFIRMED）");
         }
-        Invoice orig = requireInvoice(info.getInvoiceId());
+        // 行锁读取原票，防止多张已确认红字信息表并发红冲超额
+        Invoice orig = invoiceMapper.selectForUpdate(info.getInvoiceId());
+        if (orig == null) {
+            throw new BizException("发票不存在: " + info.getInvoiceId());
+        }
         // 重新校验未超过原票剩余可红金额（多张红字信息表可能先后确认）
         BigDecimal remainAmount = orig.getTotalAmount().subtract(null2(orig.getRedAmount()));
         BigDecimal remainTax = orig.getTotalTax().subtract(null2(orig.getRedTax()));
@@ -351,8 +355,11 @@ public class InvoiceService {
             orig.setStatus("RED_FLUSHED");
         }
         invoiceMapper.updateById(orig);
-        info.setStatus("USED");
-        redInfoMapper.updateById(info);
+        int used = jdbc.update("UPDATE inv_red_info SET status = 'USED', updated_at = CURRENT_TIMESTAMP"
+                + " WHERE id = ? AND status = 'CONFIRMED'", redInfoId);
+        if (used != 1) {
+            throw new BizException("红字信息表状态已变化，请刷新重试");
+        }
         event(orig.getId(), "RED_FLUSH", "红冲 " + info.getTotalWithTax() + "，红字票 " + red.getInvoiceNo());
         event(red.getId(), "ISSUED", "红字发票，原票 " + orig.getInvoiceNo());
         archive(red);
