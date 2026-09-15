@@ -43,23 +43,23 @@ class ReportTest {
         fx.stock(entity.getId(), "NORMAL", "999000000031", "50000001", "50000100");
 
         Invoice before = issue(entity, "500.00");
-        before.setIssueDate(LocalDate.now().withDayOfMonth(10));
+        before.setIssueDate(LocalDate.of(2020, 3, 10));
         invoiceMapper.updateById(before);
 
         Invoice inRange1 = issue(entity, "600.00");
-        inRange1.setIssueDate(LocalDate.now().withDayOfMonth(15));
+        inRange1.setIssueDate(LocalDate.of(2020, 3, 15));
         invoiceMapper.updateById(inRange1);
 
         Invoice inRange2 = issue(entity, "700.00");
-        inRange2.setIssueDate(LocalDate.now().withDayOfMonth(20));
+        inRange2.setIssueDate(LocalDate.of(2020, 3, 20));
         invoiceMapper.updateById(inRange2);
 
         Invoice after = issue(entity, "800.00");
-        after.setIssueDate(LocalDate.now().withDayOfMonth(21));
+        after.setIssueDate(LocalDate.of(2020, 3, 21));
         invoiceMapper.updateById(after);
 
         List<Map<String, Object>> rows = reportController.salesSummary(
-                "month", LocalDate.now().withDayOfMonth(15), LocalDate.now().withDayOfMonth(20)).getData();
+                "month", LocalDate.of(2020, 3, 15), LocalDate.of(2020, 3, 20)).getData();
         assertNotNull(rows);
         assertEquals(1, rows.size());
         assertEquals(2L, ((Number) rows.get(0).get("cnt")).longValue());
