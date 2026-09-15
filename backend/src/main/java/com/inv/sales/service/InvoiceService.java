@@ -375,7 +375,10 @@ public class InvoiceService {
     // ==================== 交付 ====================
     @Transactional
     public DeliveryLog deliver(Long invoiceId, String channel, String target) {
-        Invoice inv = requireInvoice(invoiceId);
+        Invoice inv = invoiceMapper.selectForUpdate(invoiceId);
+        if (inv == null) {
+            throw new BizException("发票不存在: " + invoiceId);
+        }
         if (!"ISSUED".equals(inv.getStatus()) && !"RED".equals(inv.getStatus())) {
             throw new BizException("仅有效发票可交付");
         }
