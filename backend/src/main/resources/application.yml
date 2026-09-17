@@ -55,7 +55,7 @@ inv:
     origins: ${INV_CORS_ORIGINS:http://localhost:5173}
   open:
     # 对外开放接口 /api/open/** 的 X-Api-Key（OMS/BMS/SRM 单据推送）；为空则开放接口全部拒绝
-    api-key: ${INV_OPEN_API_KEY:}
+    api-key: ${INV_OPEN_API_KEY:inv-open-key}
   mock:
     # 模拟税控失败开关：开票金额尾数 .99 时返回失败（演示用）
     tax-fail: ${INV_MOCK_TAX_FAIL:false}
