@@ -35,14 +35,20 @@ public class OpenIrControllerTest {
                 .andExpect(jsonPath("$.data.system").value("INV"))
                 .andReturn().getResponse().getContentAsString();
         JsonNode input = null;
+        JsonNode draft = null;
         for (JsonNode row : objectMapper.readTree(snapshots).get("data").get("snapshots")) {
             if ("INPUT_INVOICE".equals(row.path("dataType").asText())
                     && "10001001".equals(row.path("bizKey").asText())) {
                 input = row;
-                break;
+            }
+            if ("INVOICE_REQUEST".equals(row.path("dataType").asText())
+                    && "REQ-IR-DRAFT".equals(row.path("bizKey").asText())) {
+                draft = row;
             }
         }
         assertNotNull(input, "应包含进项发票快照");
+        assertNotNull(draft, "应包含 DRAFT 开票申请");
+        org.junit.jupiter.api.Assertions.assertEquals("DRAFT", draft.path("status").asText());
 
         String verified = mockMvc.perform(post("/api/open/ir/actions")
                         .header("X-Api-Key", "test-open-key")

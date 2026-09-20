@@ -123,6 +123,17 @@ SELECT (SELECT id FROM inv_invoice_request WHERE request_no = 'REQ-DEMO-0001'), 
        '笔记本电脑', '1090512010000000000', 'Pro 14', '台', 2, 5000.00, 10000.00, 0.13, 1300.00, CURRENT_TIMESTAMP
 WHERE NOT EXISTS (SELECT 1 FROM inv_invoice_request_line WHERE request_id = (SELECT id FROM inv_invoice_request WHERE request_no = 'REQ-DEMO-0001'));
 
+-- IR 控制塔：DRAFT 开票申请，触发 INV_REQUEST_DRAFT
+INSERT INTO inv_invoice_request (request_no, tax_entity_id, customer_id, invoice_type, buyer_name, buyer_tax_no, buyer_address_phone, buyer_bank, source, total_amount, total_tax, total_with_tax, status, created_at, updated_at)
+SELECT 'REQ-IR-DRAFT', (SELECT id FROM inv_tax_entity WHERE code = 'HQ'), (SELECT id FROM inv_partner WHERE name = '华东电商科技有限公司'),
+       'E_NORMAL', '华东电商科技有限公司', '91310000MA1K00001X', '上海市静安区南京西路1000号 021-62000001', '中国银行上海静安支行 310100000000000001',
+       'MANUAL', 5000.00, 650.00, 5650.00, 'DRAFT', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+WHERE NOT EXISTS (SELECT 1 FROM inv_invoice_request WHERE request_no = 'REQ-IR-DRAFT');
+INSERT INTO inv_invoice_request_line (request_id, goods_id, goods_name, tax_category_code, spec, unit, quantity, unit_price, amount, tax_rate, tax_amount, created_at)
+SELECT (SELECT id FROM inv_invoice_request WHERE request_no = 'REQ-IR-DRAFT'), (SELECT id FROM inv_goods WHERE code = 'G-NB'),
+       '笔记本电脑', '1090512010000000000', 'Pro 14', '台', 1, 5000.00, 5000.00, 0.13, 650.00, CURRENT_TIMESTAMP
+WHERE NOT EXISTS (SELECT 1 FROM inv_invoice_request_line WHERE request_id = (SELECT id FROM inv_invoice_request WHERE request_no = 'REQ-IR-DRAFT'));
+
 -- ===================== 演示已开发票 =====================
 INSERT INTO inv_invoice (invoice_code, invoice_no, invoice_type, tax_entity_id, buyer_name, buyer_tax_no, buyer_address_phone, buyer_bank,
     seller_name, seller_tax_no, issue_date, total_amount, total_tax, total_with_tax, check_code, status, machine_no, drawer, payee, reviewer, created_at, updated_at)
