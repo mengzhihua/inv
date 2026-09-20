@@ -42,3 +42,21 @@ and actual save rejection when write controls are exposed. Directly navigate
 to /system/user to test the route guard, then restore the admin session.
 Hidden electronic-cancel or risk-reimbursement controls prove UI prevention
 only; do not claim a backend rejection was observed without a reachable action.
+
+## Report dates, permissions and lockout
+
+Check whether Report.vue exposes custom dates before promising a UI-only date
+test. If not, supplement through the existing browser application API client
+and label it explicitly as API evidence, not a UI date-picker test. Compare
+the same single-day month/type summaries, an adjacent empty day and their
+combined interval; also test reversed dates and supported year boundaries.
+
+For hidden VIEWER writes, use the existing application API client without
+extracting credentials. Invalid/nonexistent IDs and empty bodies can verify
+403 before validation without risking valid mutations. Cover each endpoint
+group; this is representative coverage, not proof of every possible endpoint.
+
+Use a disposable viewer for five incorrect-password attempts, then submit
+the known correct password to prove lockout. Restore administrator login.
+Lockout expiry requires a separate timed test; do not claim 15-minute expiry
+was verified merely from the immediate locked message.
