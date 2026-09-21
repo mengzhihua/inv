@@ -3,6 +3,9 @@ package com.inv.integration.controller;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.inv.common.BizException;
 import com.inv.common.R;
+import com.inv.purchase.entity.InputInvoice;
+import com.inv.purchase.mapper.InputInvoiceMapper;
+import com.inv.purchase.service.InputInvoiceService;
 import com.inv.sales.entity.InvoiceRequest;
 import com.inv.sales.mapper.InvoiceRequestMapper;
 import com.inv.sales.service.InvoiceRequestService;
@@ -19,13 +22,15 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** IR 控制塔：开票申请快照与提交 / 审核。鉴权由 AuthInterceptor 校验 X-Api-Key。 */
+/** IR 控制塔：开票申请 / 进项发票快照，以及提交、审核、进项查验。 */
 @RestController
 @RequestMapping("/api/open/ir")
 @RequiredArgsConstructor
 public class OpenIrController {
     private final InvoiceRequestMapper requestMapper;
     private final InvoiceRequestService requestService;
+    private final InputInvoiceMapper inputMapper;
+    private final InputInvoiceService inputService;
 
     @GetMapping("/snapshots")
     public R<Map<String, Object>> snapshots() {
@@ -43,6 +48,19 @@ public class OpenIrController {
             row.put("title", request.getBuyerName());
             rows.add(row);
         }
+        for (InputInvoice invoice : inputMapper.selectList(
+                new LambdaQueryWrapper<InputInvoice>().orderByDesc(InputInvoice::getId))) {
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("dataType", "INPUT_INVOICE");
+            row.put("bizKey", invoice.getInvoiceNo());
+            row.put("status", invoice.getVerifyStatus());
+            row.put("sku", invoice.getInvoiceCode());
+            row.put("qty", BigDecimal.ONE);
+            row.put("amount", invoice.getTotalWithTax());
+            row.put("plantCode", invoice.getPoNo());
+            row.put("title", invoice.getSellerName());
+            rows.add(row);
+        }
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("system", "INV");
         data.put("snapshots", rows);
@@ -50,9 +68,19 @@ public class OpenIrController {
     }
 
     @PostMapping("/actions")
-    public R<InvoiceRequest> actions(@RequestBody Map<String, Object> body) {
+    public R<Object> actions(@RequestBody Map<String, Object> body) {
         String type = String.valueOf(body.getOrDefault("type", ""));
         String targetKey = String.valueOf(body.getOrDefault("targetKey", ""));
+        if ("INV_VERIFY_INPUT".equals(type)) {
+            InputInvoice invoice = inputMapper.selectOne(new LambdaQueryWrapper<InputInvoice>()
+                    .eq(InputInvoice::getInvoiceNo, targetKey)
+                    .orderByDesc(InputInvoice::getId)
+                    .last("LIMIT 1"));
+            if (invoice == null) {
+                throw new BizException("进项发票不存在: " + targetKey);
+            }
+            return R.ok(inputService.verify(invoice.getId()));
+        }
         InvoiceRequest request = requestMapper.selectOne(new LambdaQueryWrapper<InvoiceRequest>()
                 .eq(InvoiceRequest::getRequestNo, targetKey));
         if (request == null) {
