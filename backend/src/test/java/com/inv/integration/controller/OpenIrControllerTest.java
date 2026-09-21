@@ -70,7 +70,16 @@ public class OpenIrControllerTest {
         mockMvc.perform(post("/api/open/ir/actions")
                         .header("X-Api-Key", "test-open-key")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"type\":\"INV_APPROVE_REQUEST\",\"targetKey\":\"REQ-IR-SUBMITTED\"}"))
+                        .content("{\"type\":\"INV_APPROVE_REQUEST\",\"targetKey\":\"REQ-IR-SUBMITTED\","
+                                + "\"idempotencyKey\":\"INV-APPROVE-1\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data.status").value("APPROVED"));
+        mockMvc.perform(post("/api/open/ir/actions")
+                        .header("X-Api-Key", "test-open-key")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"type\":\"INV_APPROVE_REQUEST\",\"targetKey\":\"REQ-IR-SUBMITTED\","
+                                + "\"idempotencyKey\":\"INV-APPROVE-1\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0))
                 .andExpect(jsonPath("$.data.status").value("APPROVED"));
