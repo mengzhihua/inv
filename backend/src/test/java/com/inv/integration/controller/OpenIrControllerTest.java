@@ -37,6 +37,7 @@ public class OpenIrControllerTest {
         JsonNode input = null;
         JsonNode draft = null;
         JsonNode submitted = null;
+        JsonNode issued = null;
         for (JsonNode row : objectMapper.readTree(snapshots).get("data").get("snapshots")) {
             if ("INPUT_INVOICE".equals(row.path("dataType").asText())
                     && "10001001".equals(row.path("bizKey").asText())) {
@@ -50,12 +51,18 @@ public class OpenIrControllerTest {
                     && "REQ-IR-SUBMITTED".equals(row.path("bizKey").asText())) {
                 submitted = row;
             }
+            if ("SALES_INVOICE".equals(row.path("dataType").asText())
+                    && "00002000".equals(row.path("bizKey").asText())) {
+                issued = row;
+            }
         }
         assertNotNull(input, "应包含进项发票快照");
         assertNotNull(draft, "应包含 DRAFT 开票申请");
         assertNotNull(submitted, "应包含 SUBMITTED 开票申请");
+        assertNotNull(issued, "应包含已开具销项发票");
         org.junit.jupiter.api.Assertions.assertEquals("DRAFT", draft.path("status").asText());
         org.junit.jupiter.api.Assertions.assertEquals("SUBMITTED", submitted.path("status").asText());
+        org.junit.jupiter.api.Assertions.assertEquals("ISSUED", issued.path("status").asText());
 
         String verified = mockMvc.perform(post("/api/open/ir/actions")
                         .header("X-Api-Key", "test-open-key")

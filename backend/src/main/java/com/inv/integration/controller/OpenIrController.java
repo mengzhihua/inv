@@ -6,7 +6,9 @@ import com.inv.common.R;
 import com.inv.purchase.entity.InputInvoice;
 import com.inv.purchase.mapper.InputInvoiceMapper;
 import com.inv.purchase.service.InputInvoiceService;
+import com.inv.sales.entity.Invoice;
 import com.inv.sales.entity.InvoiceRequest;
+import com.inv.sales.mapper.InvoiceMapper;
 import com.inv.sales.mapper.InvoiceRequestMapper;
 import com.inv.sales.service.InvoiceRequestService;
 import lombok.RequiredArgsConstructor;
@@ -31,6 +33,7 @@ import java.util.function.Supplier;
 public class OpenIrController {
     private final InvoiceRequestMapper requestMapper;
     private final InvoiceRequestService requestService;
+    private final InvoiceMapper invoiceMapper;
     private final InputInvoiceMapper inputMapper;
     private final InputInvoiceService inputService;
     private final ConcurrentHashMap<String, Object> actionCache = new ConcurrentHashMap<String, Object>();
@@ -49,6 +52,19 @@ public class OpenIrController {
             row.put("amount", request.getTotalWithTax());
             row.put("plantCode", request.getSource());
             row.put("title", request.getBuyerName());
+            rows.add(row);
+        }
+        for (Invoice invoice : invoiceMapper.selectList(
+                new LambdaQueryWrapper<Invoice>().orderByDesc(Invoice::getId))) {
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("dataType", "SALES_INVOICE");
+            row.put("bizKey", invoice.getInvoiceNo());
+            row.put("status", invoice.getStatus());
+            row.put("sku", invoice.getInvoiceCode());
+            row.put("qty", BigDecimal.ONE);
+            row.put("amount", invoice.getTotalWithTax());
+            row.put("plantCode", invoice.getInvoiceType());
+            row.put("title", invoice.getBuyerName());
             rows.add(row);
         }
         for (InputInvoice invoice : inputMapper.selectList(
