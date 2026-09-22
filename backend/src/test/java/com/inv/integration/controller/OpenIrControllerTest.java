@@ -90,5 +90,21 @@ public class OpenIrControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0))
                 .andExpect(jsonPath("$.data.status").value("APPROVED"));
+
+        String submitBody = "{\"targetKey\":\"REQ-IR-DRAFT\",\"idempotencyKey\":\"INV-SUB-1\"}";
+        mockMvc.perform(post("/api/open/ir/submit-request")
+                        .header("X-Api-Key", "test-open-key")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(submitBody))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data.status").value("SUBMITTED"));
+        mockMvc.perform(post("/api/open/ir/submit-request")
+                        .header("X-Api-Key", "test-open-key")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(submitBody))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data.status").value("SUBMITTED"));
     }
 }

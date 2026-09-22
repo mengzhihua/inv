@@ -116,6 +116,37 @@ public class OpenIrController {
         }));
     }
 
+    @PostMapping("/verify-input")
+    public R<Object> verifyInput(@RequestBody Map<String, Object> body) {
+        return typedAction("INV_VERIFY_INPUT", body, "invoiceNo");
+    }
+
+    @PostMapping("/submit-request")
+    public R<Object> submitRequest(@RequestBody Map<String, Object> body) {
+        return typedAction("INV_SUBMIT_REQUEST", body, "requestNo");
+    }
+
+    @PostMapping("/approve-request")
+    public R<Object> approveRequest(@RequestBody Map<String, Object> body) {
+        return typedAction("INV_APPROVE_REQUEST", body, "requestNo");
+    }
+
+    private R<Object> typedAction(String type, Map<String, Object> body, String altKey) {
+        if (body == null) {
+            body = new LinkedHashMap<String, Object>();
+        }
+        body.put("type", type);
+        if (blank(body.get("targetKey")) && body.get(altKey) != null) {
+            body.put("targetKey", body.get(altKey));
+        }
+        return actions(body);
+    }
+
+    private static boolean blank(Object value) {
+        return value == null || String.valueOf(value).trim().isEmpty()
+                || "null".equals(String.valueOf(value));
+    }
+
     private Object executeOnce(String cacheKey, Supplier<Object> work) {
         if (cacheKey == null) {
             return work.get();
