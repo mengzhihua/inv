@@ -6,7 +6,9 @@ import com.inv.common.R;
 import com.inv.purchase.entity.InputInvoice;
 import com.inv.purchase.mapper.InputInvoiceMapper;
 import com.inv.purchase.service.InputInvoiceService;
+import com.inv.sales.entity.Invoice;
 import com.inv.sales.entity.InvoiceRequest;
+import com.inv.sales.mapper.InvoiceMapper;
 import com.inv.sales.mapper.InvoiceRequestMapper;
 import com.inv.sales.service.InvoiceRequestService;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +23,8 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
 
 /** IR 控制塔：开票申请 / 进项发票快照，以及提交、审核、进项查验。 */
 @RestController
@@ -29,8 +33,10 @@ import java.util.Map;
 public class OpenIrController {
     private final InvoiceRequestMapper requestMapper;
     private final InvoiceRequestService requestService;
+    private final InvoiceMapper invoiceMapper;
     private final InputInvoiceMapper inputMapper;
     private final InputInvoiceService inputService;
+    private final ConcurrentHashMap<String, Object> actionCache = new ConcurrentHashMap<String, Object>();
 
     @GetMapping("/snapshots")
     public R<Map<String, Object>> snapshots() {
@@ -46,6 +52,19 @@ public class OpenIrController {
             row.put("amount", request.getTotalWithTax());
             row.put("plantCode", request.getSource());
             row.put("title", request.getBuyerName());
+            rows.add(row);
+        }
+        for (Invoice invoice : invoiceMapper.selectList(
+                new LambdaQueryWrapper<Invoice>().orderByDesc(Invoice::getId))) {
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("dataType", "SALES_INVOICE");
+            row.put("bizKey", invoice.getInvoiceNo());
+            row.put("status", invoice.getStatus());
+            row.put("sku", invoice.getInvoiceCode());
+            row.put("qty", BigDecimal.ONE);
+            row.put("amount", invoice.getTotalWithTax());
+            row.put("plantCode", invoice.getInvoiceType());
+            row.put("title", invoice.getBuyerName());
             rows.add(row);
         }
         for (InputInvoice invoice : inputMapper.selectList(
@@ -71,27 +90,59 @@ public class OpenIrController {
     public R<Object> actions(@RequestBody Map<String, Object> body) {
         String type = String.valueOf(body.getOrDefault("type", ""));
         String targetKey = String.valueOf(body.getOrDefault("targetKey", ""));
-        if ("INV_VERIFY_INPUT".equals(type)) {
-            InputInvoice invoice = inputMapper.selectOne(new LambdaQueryWrapper<InputInvoice>()
-                    .eq(InputInvoice::getInvoiceNo, targetKey)
-                    .orderByDesc(InputInvoice::getId)
-                    .last("LIMIT 1"));
-            if (invoice == null) {
-                throw new BizException("进项发票不存在: " + targetKey);
+        return R.ok(executeOnce(cacheKey(type, targetKey, body.get("idempotencyKey")), () -> {
+            if ("INV_VERIFY_INPUT".equals(type)) {
+                InputInvoice invoice = inputMapper.selectOne(new LambdaQueryWrapper<InputInvoice>()
+                        .eq(InputInvoice::getInvoiceNo, targetKey)
+                        .orderByDesc(InputInvoice::getId)
+                        .last("LIMIT 1"));
+                if (invoice == null) {
+                    throw new BizException("进项发票不存在: " + targetKey);
+                }
+                return inputService.verify(invoice.getId());
             }
-            return R.ok(inputService.verify(invoice.getId()));
+            InvoiceRequest request = requestMapper.selectOne(new LambdaQueryWrapper<InvoiceRequest>()
+                    .eq(InvoiceRequest::getRequestNo, targetKey));
+            if (request == null) {
+                throw new BizException("开票申请不存在: " + targetKey);
+            }
+            if ("INV_SUBMIT_REQUEST".equals(type)) {
+                return requestService.transit(request.getId(), "submit", null);
+            }
+            if ("INV_APPROVE_REQUEST".equals(type)) {
+                return requestService.transit(request.getId(), "approve", null);
+            }
+            throw new BizException("不支持的 IR 指令: " + type);
+        }));
+    }
+
+    private Object executeOnce(String cacheKey, Supplier<Object> work) {
+        if (cacheKey == null) {
+            return work.get();
         }
-        InvoiceRequest request = requestMapper.selectOne(new LambdaQueryWrapper<InvoiceRequest>()
-                .eq(InvoiceRequest::getRequestNo, targetKey));
-        if (request == null) {
-            throw new BizException("开票申请不存在: " + targetKey);
+        Object cached = actionCache.get(cacheKey);
+        if (cached != null) {
+            return cached;
         }
-        if ("INV_SUBMIT_REQUEST".equals(type)) {
-            return R.ok(requestService.transit(request.getId(), "submit", null));
+        synchronized (actionCache) {
+            cached = actionCache.get(cacheKey);
+            if (cached != null) {
+                return cached;
+            }
+            Object created = work.get();
+            actionCache.put(cacheKey, created);
+            return created;
         }
-        if ("INV_APPROVE_REQUEST".equals(type)) {
-            return R.ok(requestService.transit(request.getId(), "approve", null));
+    }
+
+    private static String cacheKey(String type, String targetKey, Object idempotencyKey) {
+        if (idempotencyKey == null) {
+            return null;
         }
-        throw new BizException("不支持的 IR 指令: " + type);
+        String key = String.valueOf(idempotencyKey).trim();
+        if (key.isEmpty() || "null".equals(key)) {
+            return null;
+        }
+        return type + "|" + (targetKey == null ? "" : targetKey) + "|" + key;
     }
 }
