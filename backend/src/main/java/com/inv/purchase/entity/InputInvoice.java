@@ -1,5 +1,6 @@
 package com.inv.purchase.entity;
 
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.inv.common.BaseEntity;
 import lombok.Data;
@@ -33,6 +34,9 @@ public class InputInvoice extends BaseEntity {
     /** UNVERIFIED/VERIFIED/FAILED */
     private String verifyStatus;
     private String verifyMsg;
+    /** PASS / HEADER_MISMATCH / CHECKSUM_FAIL，不落库 */
+    @TableField(exist = false)
+    private String verifyResult;
     private LocalDateTime verifiedAt;
     /** NORMAL/ABNORMAL/RED_FLUSHED */
     private String status;

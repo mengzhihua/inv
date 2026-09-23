@@ -145,6 +145,17 @@ SELECT (SELECT id FROM inv_invoice_request WHERE request_no = 'REQ-IR-SUBMITTED'
        '笔记本电脑', '1090512010000000000', 'Pro 14', '台', 1, 8000.00, 8000.00, 0.13, 1040.00, CURRENT_TIMESTAMP
 WHERE NOT EXISTS (SELECT 1 FROM inv_invoice_request_line WHERE request_id = (SELECT id FROM inv_invoice_request WHERE request_no = 'REQ-IR-SUBMITTED'));
 
+-- IR 控制塔：已审核未开具，开具与审核分开
+INSERT INTO inv_invoice_request (request_no, tax_entity_id, customer_id, invoice_type, buyer_name, buyer_tax_no, buyer_address_phone, buyer_bank, source, total_amount, total_tax, total_with_tax, status, created_at, updated_at)
+SELECT 'REQ-IR-APPROVED', (SELECT id FROM inv_tax_entity WHERE code = 'HQ'), (SELECT id FROM inv_partner WHERE name = '华东电商科技有限公司'),
+       'ALL_ELECTRIC', '华东电商科技有限公司', '91310000MA1K00001X', '上海市静安区南京西路1000号 021-62000001', '中国银行上海静安支行 310100000000000001',
+       'OMS', 1000.00, 130.00, 1130.00, 'APPROVED', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+WHERE NOT EXISTS (SELECT 1 FROM inv_invoice_request WHERE request_no = 'REQ-IR-APPROVED');
+INSERT INTO inv_invoice_request_line (request_id, goods_id, goods_name, tax_category_code, spec, unit, quantity, unit_price, amount, tax_rate, tax_amount, created_at)
+SELECT (SELECT id FROM inv_invoice_request WHERE request_no = 'REQ-IR-APPROVED'), (SELECT id FROM inv_goods WHERE code = 'G-NB'),
+       '笔记本电脑', '1090512010000000000', 'Pro 14', '台', 1, 1000.00, 1000.00, 0.13, 130.00, CURRENT_TIMESTAMP
+WHERE NOT EXISTS (SELECT 1 FROM inv_invoice_request_line WHERE request_id = (SELECT id FROM inv_invoice_request WHERE request_no = 'REQ-IR-APPROVED'));
+
 -- ===================== 演示已开发票 =====================
 INSERT INTO inv_invoice (invoice_code, invoice_no, invoice_type, tax_entity_id, buyer_name, buyer_tax_no, buyer_address_phone, buyer_bank,
     seller_name, seller_tax_no, issue_date, total_amount, total_tax, total_with_tax, check_code, status, machine_no, drawer, payee, reviewer, created_at, updated_at)
