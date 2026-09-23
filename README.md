@@ -178,6 +178,12 @@ INV_ADMIN_PASSWORD=admin123 INV_OPEN_API_KEY=dev-open-key \
   `sha256(code|no|date|amount)` 派生值比对，抬头税号不属于本企业主体时标 ABNORMAL。
 - 电子档案随开票/红冲自动归档（模拟 PDF/OFD URL），可按月查询导出。
 
+## 控制塔对接
+
+开票申请、销项发票和进项发票快照，以及查验、提交、审核，见 [技术方案](docs/技术方案.md)。
+
+这些指令必须带 API Key：`/api/open/ir/snapshots`、`/actions`、`/verify-input`、`/submit-request`、`/approve-request`。控制塔登录模式不调用本系统。上游 OMS / BMS / SRM 推送仍走原来的 `/api/open` 业务口。
+
 ## 发布包（开箱即用）
 
 前端生产构建打进 Spring Boot 可执行 JAR。三种用法：
