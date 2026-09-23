@@ -3,6 +3,7 @@ package com.inv.integration.controller;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.inv.common.BizException;
 import com.inv.common.R;
+import com.inv.integration.client.SrmMatchClient;
 import com.inv.purchase.entity.InputInvoice;
 import com.inv.purchase.mapper.InputInvoiceMapper;
 import com.inv.purchase.service.InputInvoiceService;
@@ -38,6 +39,7 @@ public class OpenIrController {
     private final InvoiceMapper invoiceMapper;
     private final InputInvoiceMapper inputMapper;
     private final InputInvoiceService inputService;
+    private final SrmMatchClient srmMatchClient;
     private final ConcurrentHashMap<String, Object> actionCache = new ConcurrentHashMap<String, Object>();
 
     @GetMapping("/snapshots")
@@ -93,6 +95,9 @@ public class OpenIrController {
         String type = String.valueOf(body.getOrDefault("type", ""));
         String targetKey = String.valueOf(body.getOrDefault("targetKey", ""));
         return R.ok(executeOnce(cacheKey(type, targetKey, body.get("idempotencyKey")), () -> {
+            if ("INV_MATCH_INPUT".equals(type)) {
+                return matchInput(targetKey, body);
+            }
             if ("INV_VERIFY_INPUT".equals(type)) {
                 InputInvoice invoice = inputMapper.selectOne(new LambdaQueryWrapper<InputInvoice>()
                         .eq(InputInvoice::getInvoiceNo, targetKey)
@@ -126,6 +131,11 @@ public class OpenIrController {
         return typedAction("INV_VERIFY_INPUT", body, "invoiceNo");
     }
 
+    @PostMapping("/match-input")
+    public R<Object> matchInput(@RequestBody Map<String, Object> body) {
+        return typedAction("INV_MATCH_INPUT", body, "invoiceNo");
+    }
+
     @PostMapping("/submit-request")
     public R<Object> submitRequest(@RequestBody Map<String, Object> body) {
         return typedAction("INV_SUBMIT_REQUEST", body, "requestNo");
@@ -150,6 +160,65 @@ public class OpenIrController {
             body.put("targetKey", body.get(altKey));
         }
         return actions(body);
+    }
+
+    private Object matchInput(String invoiceNo, Map<String, Object> body) {
+        Map<String, Object> params = nested(body);
+        String poNo = firstText(body.get("poNo"), body.get("poCode"), params.get("poNo"), params.get("poCode"));
+        BigDecimal poAmount = decimal(firstObj(body.get("poAmount"), params.get("poAmount")));
+        BigDecimal receivedQty = decimal(firstObj(body.get("receivedQty"), params.get("receivedQty")));
+        BigDecimal invoiceQty = decimal(firstObj(body.get("invoiceQty"), params.get("invoiceQty")));
+        String grCode = firstText(body.get("grCode"), body.get("receiptNo"), params.get("grCode"), params.get("receiptNo"));
+        Map<String, Object> remote = srmMatchClient.basis(poNo);
+        if (remote != null) {
+            if (remote.get("poAmount") != null) {
+                poAmount = decimal(remote.get("poAmount"));
+            }
+            if (remote.get("receivedQty") != null) {
+                receivedQty = decimal(remote.get("receivedQty"));
+            }
+            if (remote.get("grCode") != null) {
+                grCode = String.valueOf(remote.get("grCode"));
+            }
+        }
+        return inputService.matchThreeWay(invoiceNo, poNo, grCode, poAmount, invoiceQty, receivedQty);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> nested(Map<String, Object> body) {
+        Object params = body == null ? null : body.get("params");
+        if (params instanceof Map) {
+            return (Map<String, Object>) params;
+        }
+        return new LinkedHashMap<String, Object>();
+    }
+
+    private static String firstText(Object... values) {
+        for (Object value : values) {
+            if (!blank(value)) {
+                return String.valueOf(value).trim();
+            }
+        }
+        return null;
+    }
+
+    private static Object firstObj(Object... values) {
+        for (Object value : values) {
+            if (value != null && !blank(value)) {
+                return value;
+            }
+        }
+        return null;
+    }
+
+    private static BigDecimal decimal(Object value) {
+        if (value == null || blank(value)) {
+            return null;
+        }
+        if (value instanceof BigDecimal) {
+            return (BigDecimal) value;
+        }
+        return new BigDecimal(String.valueOf(value));
     }
 
     private static boolean blank(Object value) {
