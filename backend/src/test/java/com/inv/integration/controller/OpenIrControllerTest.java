@@ -106,5 +106,24 @@ public class OpenIrControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0))
                 .andExpect(jsonPath("$.data.status").value("SUBMITTED"));
+
+        mockMvc.perform(post("/api/open/ir/match-input")
+                        .header("X-Api-Key", "test-open-key")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"invoiceNo\":\"10001002\",\"poNo\":\"PO-1\",\"poAmount\":3390,"
+                                + "\"receivedQty\":1,\"invoiceQty\":1,\"grCode\":\"GR-1\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data.matchStatus").value("MATCHED"))
+                .andExpect(jsonPath("$.data.poNo").value("PO-1"))
+                .andExpect(jsonPath("$.data.receiptNo").value("GR-1"));
+        mockMvc.perform(post("/api/open/ir/actions")
+                        .header("X-Api-Key", "test-open-key")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"type\":\"INV_MATCH_INPUT\",\"targetKey\":\"10001003\",\"poAmount\":1,"
+                                + "\"receivedQty\":2,\"invoiceQty\":1}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data.matchStatus").value("MISMATCH"));
     }
 }

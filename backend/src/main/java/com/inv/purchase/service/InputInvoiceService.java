@@ -233,6 +233,39 @@ public class InputInvoiceService {
         return inv;
     }
 
+    /** 用采购金额和收货数量做三单匹配。数量缺省时汇总发票行。 */
+    @Transactional
+    public InputInvoice matchThreeWay(String invoiceNo, String poNo, String receiptNo,
+                                      BigDecimal poAmount, BigDecimal invoiceQty, BigDecimal receivedQty) {
+        InputInvoice inv = mapper.selectOne(new LambdaQueryWrapper<InputInvoice>()
+                .eq(InputInvoice::getInvoiceNo, invoiceNo)
+                .orderByDesc(InputInvoice::getId)
+                .last("LIMIT 1"));
+        if (inv == null) {
+            throw new BizException("进项发票不存在: " + invoiceNo);
+        }
+        BigDecimal qty = invoiceQty;
+        if (qty == null) {
+            BigDecimal summed = BigDecimal.ZERO;
+            boolean any = false;
+            for (InputInvoiceLine line : linesOf(inv.getId())) {
+                if (line.getQuantity() != null) {
+                    summed = summed.add(line.getQuantity());
+                    any = true;
+                }
+            }
+            qty = any ? summed : null;
+        }
+        inv.setPoNo(poNo);
+        inv.setReceiptNo(receiptNo);
+        if (inv.getTotalWithTax() != null && poAmount != null) {
+            inv.setMatchDiff(inv.getTotalWithTax().subtract(poAmount).abs());
+        }
+        inv.setMatchStatus(ThreeWayMatch.judge(inv.getTotalWithTax(), poAmount, qty, receivedQty));
+        mapper.updateById(inv);
+        return inv;
+    }
+
     // ==================== 入账 ====================
     @Transactional
     public InputInvoice post(Long id) {
