@@ -131,8 +131,23 @@ public class InputInvoiceService {
             inv.setVerifyStatus("VERIFIED");
             inv.setVerifyMsg("查验一致");
         }
+        inv.setVerifyResult(outcome(inv));
         mapper.updateById(inv);
         return inv;
+    }
+
+    /** PASS 查验一致，HEADER_MISMATCH 抬头不符，CHECKSUM_FAIL 校验码失败。 */
+    public static String outcome(InputInvoice inv) {
+        if (inv == null || inv.getVerifyStatus() == null || "UNVERIFIED".equals(inv.getVerifyStatus())) {
+            return "UNVERIFIED";
+        }
+        if ("FAILED".equals(inv.getVerifyStatus())) {
+            return "CHECKSUM_FAIL";
+        }
+        if ("ABNORMAL".equals(inv.getStatus())) {
+            return "HEADER_MISMATCH";
+        }
+        return "PASS";
     }
 
     // ==================== 勾选抵扣 ====================

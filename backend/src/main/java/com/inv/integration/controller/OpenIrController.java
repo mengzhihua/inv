@@ -11,6 +11,7 @@ import com.inv.sales.entity.InvoiceRequest;
 import com.inv.sales.mapper.InvoiceMapper;
 import com.inv.sales.mapper.InvoiceRequestMapper;
 import com.inv.sales.service.InvoiceRequestService;
+import com.inv.sales.service.InvoiceService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -26,13 +27,14 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 
-/** IR 控制塔：开票申请 / 进项发票快照，以及提交、审核、进项查验。 */
+/** IR 控制塔：开票申请 / 进项发票快照，以及提交、审核、开具、进项查验。 */
 @RestController
 @RequestMapping("/api/open/ir")
 @RequiredArgsConstructor
 public class OpenIrController {
     private final InvoiceRequestMapper requestMapper;
     private final InvoiceRequestService requestService;
+    private final InvoiceService invoiceService;
     private final InvoiceMapper invoiceMapper;
     private final InputInvoiceMapper inputMapper;
     private final InputInvoiceService inputService;
@@ -112,6 +114,9 @@ public class OpenIrController {
             if ("INV_APPROVE_REQUEST".equals(type)) {
                 return requestService.transit(request.getId(), "approve", null);
             }
+            if ("INV_ISSUE_REQUEST".equals(type)) {
+                return invoiceService.issue(request.getId());
+            }
             throw new BizException("不支持的 IR 指令: " + type);
         }));
     }
@@ -129,6 +134,11 @@ public class OpenIrController {
     @PostMapping("/approve-request")
     public R<Object> approveRequest(@RequestBody Map<String, Object> body) {
         return typedAction("INV_APPROVE_REQUEST", body, "requestNo");
+    }
+
+    @PostMapping("/issue-request")
+    public R<Object> issueRequest(@RequestBody Map<String, Object> body) {
+        return typedAction("INV_ISSUE_REQUEST", body, "requestNo");
     }
 
     private R<Object> typedAction(String type, Map<String, Object> body, String altKey) {

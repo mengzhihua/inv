@@ -73,6 +73,8 @@ public class OpenIrControllerTest {
                 .andReturn().getResponse().getContentAsString();
         String status = objectMapper.readTree(verified).path("data").path("verifyStatus").asText();
         assertTrue("VERIFIED".equals(status) || "FAILED".equals(status), status);
+        String result = objectMapper.readTree(verified).path("data").path("verifyResult").asText();
+        assertTrue("PASS".equals(result) || "HEADER_MISMATCH".equals(result) || "CHECKSUM_FAIL".equals(result), result);
 
         mockMvc.perform(post("/api/open/ir/actions")
                         .header("X-Api-Key", "test-open-key")
@@ -106,5 +108,23 @@ public class OpenIrControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0))
                 .andExpect(jsonPath("$.data.status").value("SUBMITTED"));
+    }
+
+    @Test
+    public void issueStaysSeparateFromApprove() throws Exception {
+        mockMvc.perform(post("/api/open/ir/issue-request")
+                        .header("X-Api-Key", "test-open-key")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"requestNo\":\"REQ-IR-APPROVED\",\"idempotencyKey\":\"INV-ISSUE-1\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data.status").value("ISSUED"));
+        mockMvc.perform(post("/api/open/ir/issue-request")
+                        .header("X-Api-Key", "test-open-key")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"requestNo\":\"REQ-IR-APPROVED\",\"idempotencyKey\":\"INV-ISSUE-1\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data.status").value("ISSUED"));
     }
 }
