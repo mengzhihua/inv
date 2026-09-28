@@ -103,7 +103,7 @@ export const report = {
   dashboard: () => http.get('/report/dashboard'),
   salesSummary: (params) => http.get('/report/sales-summary', { params }),
   inputSummary: (params) => http.get('/report/input-summary', { params }),
-  redCancel: () => http.get('/report/red-cancel-summary'),
+  redCancel: (params) => http.get('/report/red-cancel-summary', { params }),
   customerRank: (params) => http.get('/report/customer-rank', { params })
 }
 

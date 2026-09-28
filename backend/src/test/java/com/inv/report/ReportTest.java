@@ -21,6 +21,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SpringBootTest
 @ActiveProfiles("test")
@@ -81,8 +82,60 @@ class ReportTest {
         assertEquals("日期超出可查询范围", oldDate.getMessage());
     }
 
+    @Test
+    void exportSummaryRespectsDateRange() {
+        TaxEntity entity = fx.newEntity("T-REPORT-EXP", "91310000TREPORTEXP1");
+        fx.stock(entity.getId(), "NORMAL", "999000000032", "60000001", "60000100");
+        Invoice inRange = issue(entity, "100.00", "区间导出客户A");
+        inRange.setIssueDate(LocalDate.now().withDayOfMonth(15));
+        invoiceMapper.updateById(inRange);
+        Invoice outRange = issue(entity, "200.00", "区间导出客户B");
+        outRange.setIssueDate(LocalDate.now().minusMonths(3).withDayOfMonth(10));
+        invoiceMapper.updateById(outRange);
+
+        LocalDate from = LocalDate.now().withDayOfMonth(1);
+        LocalDate to = LocalDate.now().withDayOfMonth(28);
+        byte[] csv = reportController.exportSummary("customer", from, to).getBody();
+        assertNotNull(csv);
+        String body = new String(csv, java.nio.charset.StandardCharsets.UTF_8);
+        assertTrue(body.contains(inRange.getBuyerName()));
+        assertTrue(!body.contains(outRange.getBuyerName()));
+    }
+
+    @Test
+    void customerRankRespectsDateRange() {
+        TaxEntity entity = fx.newEntity("T-REPORT-RANK", "91310000TREPORTRANK1");
+        fx.stock(entity.getId(), "NORMAL", "999000000033", "70000001", "70000100");
+        Invoice inRange = issue(entity, "100.00", "区间排名客户A");
+        inRange.setIssueDate(LocalDate.now().withDayOfMonth(15));
+        invoiceMapper.updateById(inRange);
+        Invoice outRange = issue(entity, "200.00", "区间排名客户B");
+        outRange.setIssueDate(LocalDate.now().minusMonths(3).withDayOfMonth(10));
+        invoiceMapper.updateById(outRange);
+
+        LocalDate from = LocalDate.now().withDayOfMonth(1);
+        LocalDate to = LocalDate.now().withDayOfMonth(28);
+        List<Map<String, Object>> rows = reportController.customerRank(10, from, to).getData();
+        assertNotNull(rows);
+        boolean sawIn = false;
+        for (Map<String, Object> row : rows) {
+            Object dim = row.get("dim") == null ? row.get("DIM") : row.get("dim");
+            assertTrue(!String.valueOf(dim).equals(outRange.getBuyerName()));
+            if (String.valueOf(dim).equals(inRange.getBuyerName())) {
+                sawIn = true;
+            }
+        }
+        assertTrue(sawIn);
+    }
+
     private Invoice issue(TaxEntity entity, String amount) {
-        InvoiceRequest request = requestService.create(TestFixtures.req(entity.getId(), "NORMAL"),
+        return issue(entity, amount, "测试买方公司");
+    }
+
+    private Invoice issue(TaxEntity entity, String amount, String buyerName) {
+        InvoiceRequest req = TestFixtures.req(entity.getId(), "NORMAL");
+        req.setBuyerName(buyerName);
+        InvoiceRequest request = requestService.create(req,
                 TestFixtures.one(amount, "0.13"));
         requestService.transit(request.getId(), "submit", null);
         requestService.transit(request.getId(), "approve", null);
