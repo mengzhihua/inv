@@ -97,6 +97,10 @@ public class ReportController {
     public R<List<Map<String, Object>>> salesSummary(@RequestParam(defaultValue = "month") String dimension,
                                                      @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
                                                      @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+        return R.ok(salesRows(dimension, from, to));
+    }
+
+    private void validateRange(LocalDate from, LocalDate to) {
         if (from != null && to != null && from.isAfter(to)) {
             throw new BizException("开始日期不能晚于结束日期");
         }
@@ -104,6 +108,10 @@ public class ReportController {
                 || (to != null && (to.getYear() > 9999 || to.getYear() < 1900))) {
             throw new BizException("日期超出可查询范围");
         }
+    }
+
+    private List<Map<String, Object>> salesRows(String dimension, LocalDate from, LocalDate to) {
+        validateRange(from, to);
         if ("month".equals(dimension)) {
             boolean defaultRange = from == null && to == null;
             LocalDate rangeFrom = defaultRange
@@ -129,7 +137,7 @@ public class ReportController {
                 }
                 first = next;
             }
-            return R.ok(rows);
+            return rows;
         }
         String col;
         switch (dimension) {
@@ -146,7 +154,7 @@ public class ReportController {
                 .le(to != null, "issue_date", to)
                 .groupBy(col)
                 .orderByAsc("dim");
-        return R.ok(invoiceMapper.selectMaps(qw));
+        return invoiceMapper.selectMaps(qw);
     }
 
     /** 进项统计：维度 = supplier/rate/deductStatus */
@@ -167,30 +175,41 @@ public class ReportController {
 
     /** 红冲/作废统计 */
     @GetMapping("/red-cancel-summary")
-    public R<List<Map<String, Object>>> redCancel() {
+    public R<List<Map<String, Object>>> redCancel(@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+                                                  @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+        validateRange(from, to);
         QueryWrapper<com.inv.sales.entity.Invoice> qw = new QueryWrapper<>();
         qw.select("status AS dim", "COUNT(*) AS cnt", "SUM(total_with_tax) AS withTax")
                 .in("status", "CANCELLED", "RED_FLUSHED", "RED")
+                .ge(from != null, "issue_date", from)
+                .le(to != null, "issue_date", to)
                 .groupBy("status");
         return R.ok(invoiceMapper.selectMaps(qw));
     }
 
     /** 客户开票排名 */
     @GetMapping("/customer-rank")
-    public R<List<Map<String, Object>>> customerRank(@RequestParam(defaultValue = "10") int limit) {
+    public R<List<Map<String, Object>>> customerRank(@RequestParam(defaultValue = "10") int limit,
+                                                     @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+                                                     @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+        validateRange(from, to);
         QueryWrapper<com.inv.sales.entity.Invoice> qw = new QueryWrapper<>();
         int n = Math.max(1, Math.min(limit, 100));
         Page<Map<String, Object>> page = new Page<>(1, n);
         qw.select("buyer_name AS dim", "COUNT(*) AS cnt", "SUM(total_with_tax) AS withTax")
                 .ne("status", "CANCELLED")
+                .ge(from != null, "issue_date", from)
+                .le(to != null, "issue_date", to)
                 .groupBy("buyer_name")
                 .orderByDesc("withTax");
         return R.ok(invoiceMapper.selectMapsPage(page, qw).getRecords());
     }
 
     @GetMapping("/sales-summary/export")
-    public ResponseEntity<byte[]> exportSummary(@RequestParam(defaultValue = "month") String dimension) {
-        List<Map<String, Object>> rows = salesSummary(dimension, null, null).getData();
+    public ResponseEntity<byte[]> exportSummary(@RequestParam(defaultValue = "month") String dimension,
+                                                @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+                                                @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+        List<Map<String, Object>> rows = salesRows(dimension, from, to);
         return Csv.download("sales-summary.csv",
                 new String[]{"dim", "cnt", "amount", "tax", "withTax"},
                 rows, r -> new Object[]{r.get("DIM") == null ? r.get("dim") : r.get("DIM"),
