@@ -90,11 +90,17 @@ function rangeParams() {
   if (salesRange.value && salesRange.value[1]) params.to = salesRange.value[1]
   return params
 }
-async function loadSales() { salesRows.value = await report.salesSummary({ dimension: salesDim.value, ...rangeParams() }) }
-async function loadRed() { redRows.value = await report.redCancel(rangeParams()) }
-async function loadRank() { rank.value = await report.customerRank({ limit: 10, ...rangeParams() }) }
+const seq = { sales: 0, red: 0, rank: 0, input: 0 }
+async function latest(key, target, request) {
+  const n = ++seq[key]
+  const data = await request()
+  if (n === seq[key]) target.value = data
+}
+function loadSales() { return latest('sales', salesRows, () => report.salesSummary({ dimension: salesDim.value, ...rangeParams() })) }
+function loadRed() { return latest('red', redRows, () => report.redCancel(rangeParams())) }
+function loadRank() { return latest('rank', rank, () => report.customerRank({ limit: 10, ...rangeParams() })) }
 function loadRange() { loadSales(); loadRed(); loadRank() }
-async function loadInput() { inputRows.value = await report.inputSummary({ dimension: inputDim.value }) }
+function loadInput() { return latest('input', inputRows, () => report.inputSummary({ dimension: inputDim.value })) }
 function exportSales() { downloadCsv('/report/sales-summary/export', { dimension: salesDim.value, ...rangeParams() }, '销项统计.csv') }
 
 onMounted(async () => {
