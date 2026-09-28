@@ -5,7 +5,7 @@
 另含费用报销合规检查、税务属期与增值税申报预填、电子档案与集成开放接口。
 与本组织 BMS（~/repos/bms）同构（Spring Boot 2.7 + MyBatis-Plus / Vue 3 + Element Plus）。
 
-项目亮点见 [docs/项目亮点.md](docs/项目亮点.md)。
+项目亮点见 [docs/项目亮点.md](docs/项目亮点.md)，图文项目汇报见 [docs/项目汇报.md](docs/项目汇报.md)。
 
 怎么用、亮点和适用场景见 [docs/图文导读.md](docs/图文导读.md)。
 
